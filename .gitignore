@@ -1,0 +1,13 @@
+.DS_Store
+# Xcode / SwiftPM build detritus (project lives under ios/)
+ios/*.xcodeproj/
+ios/.build/
+ios/build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+# Generated Info.plists (XcodeGen writes these from project.yml)
+ios/Sources/Info.plist
+ios/Widget/Info.plist
+ios/WatchApp/Info.plist
+ios/WatchComplication/Info.plist
