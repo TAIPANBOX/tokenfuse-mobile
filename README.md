@@ -6,7 +6,7 @@
 
 ### Hold the breaker on your agents.
 
-Watch your AI agents' spend live, and pull a **hardware-signed kill switch** from your pocket or your wrist.
+Watch your AI agents' spend live, and pull a **hardware-signed kill switch** from your phone or your wrist.
 
 ![iOS](https://img.shields.io/badge/iOS-17.2+-000000?logo=apple)
 ![watchOS](https://img.shields.io/badge/watchOS-10+-000000?logo=apple)
