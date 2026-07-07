@@ -4,9 +4,9 @@
 
 # TokenFuse for iPhone & Apple Watch
 
-### Hold the breaker on your agents.
+### Hold the Breaker on your agents.
 
-Watch your AI agents' spend live, and pull a **hardware-signed kill switch** from your phone or your wrist.
+The out-of-band control for **TokenFuse**, the runtime spend kill-switch for AI agents. Watch every agent's burn live, and pull the **Breaker** — signed on-device by the Secure Enclave — from your phone or your wrist.
 
 ![iOS](https://img.shields.io/badge/iOS-17.2+-000000?logo=apple)
 ![watchOS](https://img.shields.io/badge/watchOS-10+-000000?logo=apple)
@@ -17,7 +17,9 @@ Watch your AI agents' spend live, and pull a **hardware-signed kill switch** fro
 
 ---
 
-This is the native **iPhone + Apple Watch** app for **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)**, a gateway that keeps AI agents from burning through your budget. The gateway does the enforcing; this app is the **command deck** you carry: see every agent's burn rate live, get alerted the moment one runs hot, and stop it with a kill that's *cryptographically signed on your device*.
+This is the native **iPhone + Apple Watch** app for **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)**, the runtime spend kill-switch for AI agents: a proxy that caps what your agents can spend and cuts them off the instant they blow past budget. TokenFuse's proxy does the enforcing in-line; this app is the **out-of-band control** you carry — an independent, hardware-rooted way to pull the **Breaker** that keeps working even if the agent's own host is the thing running away or compromised. See every agent's burn rate live, get alerted the moment one runs hot, and stop it with a kill that's signed on-device by your device's **Secure Enclave**.
+
+> TokenFuse's CLI and local proxy are **free forever** (Apache-2.0, self-host). The hosted **Cloud** plane is a flat-monthly plan for fleet-wide dashboards and central budgets (pricing not finalized). This app pairs with either — your own self-hosted plane, or Cloud.
 
 <div align="center">
 
@@ -50,23 +52,23 @@ A chatbot makes **one** call to an AI model. An **agent** makes *hundreds*: it t
 
 - **See** every agent's spend and burn rate, live.
 - **Get alerted** the moment one runs hot.
-- **Kill** a runaway agent in two taps, and that kill is signed by a key that lives in your device's **Secure Enclave**, so it can't be forged.
+- **Pull the Breaker** on a runaway agent in two taps, signed by a key that lives in your device's **Secure Enclave**, so it can't be forged.
 
 You don't need to be an engineer to use it: pair once, and the fleet is right there. Green while you're safe, warming to amber, red when an agent is over budget.
 
 ---
 
-## 🔒 Why a kill switch needs an app (and a signature)
+## 🔒 Why the Breaker needs an app (and a signature)
 
-Stopping an agent mid-task is a powerful, destructive action, so it has to be **authenticated**. If a kill were just an API call with a token, then anyone who stole that token could shut your agents down.
+Stopping an agent mid-task is a powerful, destructive action, so it has to be **authenticated**. If pulling the Breaker were just an API call with a token, then anyone who stole that token could shut your agents down — or, just as bad, a compromised or runaway agent host could suppress the stop from reaching the proxy at all.
 
-TokenFuse solves this with **hardware-backed signing**. When you pair this app, it generates a private key **inside the device's Secure Enclave**, a chip that never lets the key out, not even to the app itself. Every kill (and every budget change) is signed by that key on-device. The gateway verifies the signature before it acts. The result:
+TokenFuse solves this with **hardware-backed signing** on a *separate* device. When you pair this app, it generates a private key **inside the device's Secure Enclave**, a chip that never lets the key out, not even to the app itself. Every Breaker pull (and every budget change) is signed by that key on-device. The control plane verifies the signature before it acts. The result:
 
-- A stolen **API token alone can't stop your agents**, because it isn't the signing key.
-- A stolen **phone can't fire the kill** either, because the slide-to-arm control is behind **Face ID**.
-- The kill is **enforced across every gateway** in your fleet, instantly.
+- A stolen **API token alone can't fire the Breaker**, because it isn't the signing key.
+- A stolen **phone can't fire the Breaker** either, because the slide-to-arm control is behind **Face ID**.
+- The Breaker is **enforced across every gateway** in your fleet, instantly, from a device that's independent of whatever the agent is running on.
 
-This is the heart of the design: *the breaker is in your hand, and only your hand can pull it.*
+This is the differentiator a first-party, in-process control can't match: a signed kill that comes from *outside* the agent's own host, so it still works when that host is exactly what's misbehaving. This is the heart of the design: *the Breaker is in your hand, and only your hand can pull it* — signed on-device by the Secure Enclave, not merely "an API call with extra steps."
 
 ---
 
@@ -77,7 +79,7 @@ This is the heart of the design: *the breaker is in your hand, and only your han
 - **Live fleet.** Every run with its spend and **burn rate** (`$/min`), sorted hottest-first, over-budget runs in red.
 - **The fuse.** A signature burn meter that heats **mint → amber → ember** as spend approaches the cap. One glance tells you who's in trouble.
 - **Run detail.** A **burn chart** for the last hour, plus steps / calls / cache-hits.
-- **Slide-to-arm kill.** A deliberate, two-step control behind **Face ID**, signed by the Secure Enclave.
+- **Slide-to-arm the Breaker.** A deliberate, two-step control behind **Face ID**, signed by the Secure Enclave.
 - **Per-run budgets.** Set or change a run's cap right from your phone.
 - **Dynamic Island & Lock Screen.** The burn rate rides along while you do other things (a **Live Activity**).
 - **Notifications.** A nudge the moment a run crosses its cap.
@@ -85,7 +87,7 @@ This is the heart of the design: *the breaker is in your hand, and only your han
 ### ⌚ Apple Watch
 
 - **Fleet glance.** The fleet burn rate and every run as a fuse, on your wrist.
-- **Kill from the wrist.** Tap a run, tap **Kill**. The kill is *signed on the Apple Watch* by its own device key.
+- **Pull the Breaker from the wrist.** Tap a run, tap **Kill**. It's *signed on the Apple Watch* by its own device key.
 - **Face complication.** The burn rate rides on your **watch face**, amber normally and red when a run is over cap. No app to open.
 
 <div align="center">
