@@ -6,7 +6,7 @@
 
 ### Hold the Breaker on your agents.
 
-The out-of-band control for **TokenFuse**, the runtime spend kill-switch for AI agents. Watch every agent's burn live, and pull the **Breaker** — signed on-device by the Secure Enclave — from your phone or your wrist.
+The out-of-band control for **TokenFuse**, the runtime kill-switch for AI agents. Watch every agent's burn live, see what you're saving, and pull the **Breaker** (signed on-device by the Secure Enclave) from your phone or your wrist.
 
 ![iOS](https://img.shields.io/badge/iOS-17.2+-000000?logo=apple)
 ![watchOS](https://img.shields.io/badge/watchOS-10+-000000?logo=apple)
@@ -17,7 +17,7 @@ The out-of-band control for **TokenFuse**, the runtime spend kill-switch for AI 
 
 ---
 
-This is the native **iPhone + Apple Watch** app for **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)**, the runtime spend kill-switch for AI agents: a proxy that caps what your agents can spend and cuts them off the instant they blow past budget. TokenFuse's proxy does the enforcing in-line; this app is the **out-of-band control** you carry — an independent, hardware-rooted way to pull the **Breaker** that keeps working even if the agent's own host is the thing running away or compromised. See every agent's burn rate live, get alerted the moment one runs hot, and stop it with a kill that's signed on-device by your device's **Secure Enclave**.
+This is the native **iPhone + Apple Watch** app for **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)**, the runtime kill-switch for AI agents: a proxy that caps what your agents can spend and cuts them off the instant they blow past budget. TokenFuse's proxy does the enforcing in-line; this app is the **out-of-band control** you carry: an independent, hardware-rooted way to pull the **Breaker** that keeps working even if the agent's own host is the thing running away or compromised. See every agent's burn rate live, get alerted the moment one runs hot, and stop it with a kill that's signed on-device by your device's **Secure Enclave**.
 
 > TokenFuse's CLI and local proxy are **free forever** (Apache-2.0, self-host). The hosted **Cloud** plane is a flat-monthly plan for fleet-wide dashboards and central budgets (pricing not finalized). This app pairs with either — your own self-hosted plane, or Cloud.
 
@@ -83,6 +83,13 @@ This is the differentiator a first-party, in-process control can't match: a sign
 - **Per-run budgets.** Set or change a run's cap right from your phone.
 - **Dynamic Island & Lock Screen.** The burn rate rides along while you do other things (a **Live Activity**).
 - **Notifications.** A nudge the moment a run crosses its cap.
+
+The app isn't only the Breaker. It mirrors the same **FinOps and governance** view the [web dashboard](https://github.com/TAIPANBOX/tokenfuse/tree/main/cloud/dashboard) shows, so the whole picture is on your phone:
+
+- **Savings.** A running "saved this month" headline, broken down into the three ways TokenFuse avoids spend: budget blocks on runaway runs, semantic-cache hits, and the model router picking a cheaper model. This is the FinOps value in one glance.
+- **Per-agent spend.** Cost rolled up by agent (with an explicit *unattributed* bucket), for a multi-agent fleet.
+- **Incidents.** The fleet's anomalies (budget exhausted, sustained loop, spend spike, fan-out explosion), each with a severity, and a **Face-ID-signed acknowledge**.
+- **Governance.** Read-only compliance evidence mapped to **EU AI Act**, **Fed SR 11-7**, and **SOC 2** (each control graded Enforced / Partial / Documented), the tamper-evident **audit trail** with a live chain-verify, and a per-run **replay** timeline. Evidence, not a certification.
 
 ### ⌚ Apple Watch
 
@@ -152,7 +159,7 @@ A single SwiftUI codebase, shared across phone and watch.
 - **SwiftUI · Swift 6** with strict concurrency; `@Observable` state, **SwiftData** for an offline cache, **Swift Charts** for the burn history.
 - **WidgetKit** powers the Dynamic Island / Lock-Screen **Live Activity** on iPhone, and the **watch-face complication** (fed from the app over an App Group).
 - **CryptoKit / Secure Enclave** handle device pairing and **ES256-signed** kills and budget changes. The exact wire protocol (canonical signing string, key formats) mirrors the gateway's, so a kill signed here is verified there.
-- **Generated API layer.** The typed client mirrors [`ios/openapi.json`](ios/openapi.json), the same OpenAPI contract the control plane publishes.
+- **Generated API layer.** The typed client mirrors [`ios/openapi.json`](ios/openapi.json), the same OpenAPI contract the control plane publishes. It tracks the current contract, including the FinOps and governance reads (savings, per-agent spend, incidents, compliance evidence, audit, replay) and the typed `402 plan_required` upgrade path for paid features.
 - **XcodeGen.** The project is defined in YAML, not a binary `.pbxproj`, so changes are readable in a diff.
 
 The iPhone and Apple Watch apps share the design system, the API layer, and the signing code; each adds only its own screens.
@@ -161,7 +168,7 @@ The iPhone and Apple Watch apps share the design system, the API layer, and the 
 
 ## 📊 Status
 
-- **iPhone app: complete.** Pairing, live fleet, run detail with burn charts, Face-ID and Enclave-signed kill and budgets, notifications, Dynamic Island / Live Activity, app icon.
+- **iPhone app: complete.** Organized into four tabs (Fleet · FinOps · Incidents · Governance). Pairing, live fleet, run detail with burn charts, Face-ID and Enclave-signed kill and budgets, notifications, Dynamic Island / Live Activity, app icon. The FinOps tab adds the savings headline and per-agent spend; Incidents adds the anomaly feed with a signed acknowledge; Governance adds compliance evidence, the audit trail with chain-verify, and per-run replay. Every screen is verified live against a real control plane on the simulator.
 - **Apple Watch app: complete.** Live fleet, wrist-signed kill, and the face complication.
 - **Deferred** (needs a paid Apple Developer account or real paired devices): real remote **push** delivery, an **App Store** release, and hand-off of the session from the paired iPhone to the Watch over WatchConnectivity (today the Watch pairs on its own).
 

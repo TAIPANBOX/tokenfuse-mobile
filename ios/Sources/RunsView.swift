@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Push destinations from the Fleet tab's own stack: a run's detail, and the
+/// replay screen `RunDetailView` pushes from it. (Savings/Agents/Incidents/
+/// Governance moved to their own tabs in `MainTabView` — they're no longer
+/// pushed from here.)
+enum RunsDestination: Hashable {
+    case run(RunDisplay)
+    case replay(String)
+}
+
 /// The home deck, live from the paired plane: spent-today hero + fuse, then every
 /// run as a fuse — hottest first, over-cap in ember. Long-press a run to kill it;
 /// the request is signed on this device. (Per-run/fleet $/min join in B6; the
@@ -10,9 +19,10 @@ struct RunsView: View {
 
     @Environment(\.modelContext) private var modelContext
     @State private var store = RunsStore()
-    @State private var path: [RunDisplay] = []
+    @State private var path: [RunsDestination] = []
     @State private var killTarget: RunDisplay?
     @State private var actionError: String?
+    @State private var showSettings = false
 
     private var client: APIClient { account.reads }
 
@@ -30,7 +40,7 @@ struct RunsView: View {
                             heroCard(summary)
                         }
                         ForEach(store.runs) { run in
-                            NavigationLink(value: run) { RunRow(run: run) }
+                            NavigationLink(value: RunsDestination.run(run)) { RunRow(run: run) }
                                 .buttonStyle(.plain)
                                 .contextMenu {
                                     if !run.killed {
@@ -45,8 +55,13 @@ struct RunsView: View {
                     .padding(18)
                 }
             }
-            .navigationDestination(for: RunDisplay.self) { run in
-                RunDetailView(run: run, account: account, onMutated: reload)
+            .navigationDestination(for: RunsDestination.self) { destination in
+                switch destination {
+                case .run(let run):
+                    RunDetailView(run: run, account: account, onMutated: reload)
+                case .replay(let runId):
+                    ReplayView(run: runId, account: account)
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
             .task {
@@ -69,6 +84,9 @@ struct RunsView: View {
             } message: {
                 Text(actionError ?? "")
             }
+            .sheet(isPresented: $showSettings) {
+                DeviceSettingsSheet(account: account, onUnpair: onUnpair)
+            }
         }
         .tint(Palette.iris)
         .foregroundStyle(Palette.fg)
@@ -82,7 +100,7 @@ struct RunsView: View {
         let requested = Router.shared.openRun ?? LaunchArgs.value("-openRun")
         if path.isEmpty, let id = requested,
            let run = store.runs.first(where: { $0.id == id }) {
-            path = [run]
+            path = [.run(run)]
             Router.shared.openRun = nil
         }
     }
@@ -121,16 +139,22 @@ struct RunsView: View {
                 .overlay(Capsule().stroke(Palette.line))
             }
             Spacer()
-            Button(action: onUnpair) {
-                Image(systemName: "iphone.slash")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Palette.iris)
-                    .padding(9)
-                    .background(Palette.panel, in: Circle())
-                    .overlay(Circle().stroke(Palette.line))
+            headerButton(icon: "gearshape", accessibilityLabel: "Settings") {
+                showSettings = true
             }
-            .accessibilityLabel("Unpair this device")
         }
+    }
+
+    private func headerButton(icon: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Palette.iris)
+                .padding(9)
+                .background(Palette.panel, in: Circle())
+                .overlay(Circle().stroke(Palette.line))
+        }
+        .accessibilityLabel(accessibilityLabel)
     }
 
     private func heroCard(_ summary: Summary) -> some View {

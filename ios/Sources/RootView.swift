@@ -9,7 +9,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if let account {
-                RunsView(account: account, onUnpair: unpair)
+                MainTabView(account: account, onUnpair: unpair)
             } else {
                 PairView { account = $0 }
             }

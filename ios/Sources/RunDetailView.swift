@@ -27,6 +27,7 @@ struct RunDetailView: View {
                     gauge
                     if !series.isEmpty { chartCard }
                     stats
+                    replayLink
                     if !run.killed { actions }
                 }
                 .padding(20)
@@ -107,6 +108,24 @@ struct RunDetailView: View {
             StatTile(label: "Calls", value: "\(run.agg.calls)")
             StatTile(label: "Cache", value: "\(run.agg.cacheHits)")
         }
+    }
+
+    /// Pushes onto the ambient `RunsDestination` stack this view is already
+    /// hosted in (see `RunsView`'s `navigationDestination(for:)`).
+    private var replayLink: some View {
+        NavigationLink(value: RunsDestination.replay(run.agg.runId)) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                Text("Replay")
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .frame(maxWidth: .infinity).padding(.vertical, 13)
+            .foregroundStyle(Palette.iris)
+            .background(Palette.panel, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.line))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens this run's event timeline")
     }
 
     private var actions: some View {

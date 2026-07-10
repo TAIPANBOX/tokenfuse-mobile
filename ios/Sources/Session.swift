@@ -107,6 +107,12 @@ final class Account {
         try await send(request)
     }
 
+    /// Acknowledge an incident (admin only).
+    func ackIncident(id: String) async throws {
+        let request = try signedRequest(method: "POST", path: "/v1/incidents/\(id)/ack", body: Data())
+        try await send(request)
+    }
+
     func setBudget(run: String, usd: Double) async throws {
         let body = try JSONSerialization.data(withJSONObject: ["budget_usd": usd])
         let request = try signedRequest(method: "POST", path: "/v1/runs/\(run)/budget", body: body)
