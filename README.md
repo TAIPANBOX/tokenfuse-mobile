@@ -91,6 +91,37 @@ The app isn't only the Breaker. It mirrors the same **FinOps and governance** vi
 - **Incidents.** The fleet's anomalies (budget exhausted, sustained loop, spend spike, fan-out explosion), each with a severity, and a **Face-ID-signed acknowledge**.
 - **Governance.** Read-only compliance evidence mapped to **EU AI Act**, **Fed SR 11-7**, and **SOC 2** (each control graded Enforced / Partial / Documented), the tamper-evident **audit trail** with a live chain-verify, and a per-run **replay** timeline. Evidence, not a certification.
 
+The FinOps and governance surface, live against a control plane:
+
+<div align="center">
+
+<table>
+<tr>
+<td width="33%"><img src="screenshots/savings.png" alt="Savings headline"></td>
+<td width="33%"><img src="screenshots/agents.png" alt="Spend by agent"></td>
+<td width="33%"><img src="screenshots/incidents.png" alt="Incidents feed"></td>
+</tr>
+<tr>
+<td align="center"><sub>Saved this month · blocked / cache / router</sub></td>
+<td align="center"><sub>Spend by agent</sub></td>
+<td align="center"><sub>Incidents · Face-ID-signed ack</sub></td>
+</tr>
+<tr>
+<td width="33%"><img src="screenshots/governance-evidence.png" alt="Compliance evidence"></td>
+<td width="33%"><img src="screenshots/governance-audit.png" alt="Audit trail"></td>
+<td width="33%"><img src="screenshots/replay.png" alt="Per-run replay"></td>
+</tr>
+<tr>
+<td align="center"><sub>Evidence · EU AI Act / SR 11-7 / SOC 2</sub></td>
+<td align="center"><sub>Tamper-evident audit · chain-verify</sub></td>
+<td align="center"><sub>Per-run replay timeline</sub></td>
+</tr>
+</table>
+
+</div>
+
+> These are live captures from the iOS Simulator paired to a real TokenFuse control plane with seeded demo traffic (a fleet of agents, cache/router savings, a few runaway runs stopped, and the four incident detectors tripped). Nothing here is mocked in the app; every number is decoded from the control-plane API.
+
 ### ⌚ Apple Watch
 
 - **Fleet glance.** The fleet burn rate and every run as a fuse, on your wrist.
