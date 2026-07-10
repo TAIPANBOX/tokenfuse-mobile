@@ -10,6 +10,40 @@
     "version": "0.0.1"
   },
   "paths": {
+    "/v1/agents": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "The caller org's per-agent spend rollup, highest spend first. The\nempty-string agent is the unattributed bucket.",
+        "operationId": "agents",
+        "responses": {
+          "200": {
+            "description": "aggregated agents, highest spend first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentAgg"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/alerts": {
       "get": {
         "tags": [
@@ -59,6 +93,122 @@
         }
       }
     },
+    "/v1/audit": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "The caller org's tamper-evident audit trail of control-plane mutations,\noldest first. Readable by any role (like the other reads); a paid feature.",
+        "operationId": "audit",
+        "responses": {
+          "200": {
+            "description": "audit chain, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntrySchema"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audit/manifest": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "A cryptographically-signed manifest over the caller org's audit chain tip:\nan ES256 signature (server P-256 key) an auditor can verify offline to prove\nthe log ended at this entry, unaltered. Readable by any role (like the other\naudit reads); a paid feature. When no signing key is configured the server\nreturns `404 {\"error\":\"audit manifest signing not configured\"}` (never a\n`500`); the rest of the audit trail is unaffected.",
+        "operationId": "audit_manifest",
+        "responses": {
+          "200": {
+            "description": "signed manifest over the chain tip",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditManifest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "plan required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanRequiredResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "manifest signing not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audit/verify": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "Verify the caller org's audit chain end-to-end: `{ok:true}` when intact, else\n`{ok:false, break_index:N}` at the first broken link. A paid feature.",
+        "operationId": "audit_verify",
+        "responses": {
+          "200": {
+            "description": "chain integrity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditVerifyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/budgets": {
       "get": {
         "tags": [
@@ -76,6 +226,89 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/compliance": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "The caller org's compliance evidence pack: the control catalog projected\nagainst the org's live decision + incident evidence. Readable by any role\n(like the other reads); a paid feature.",
+        "description": "The cloud path has **incident** evidence but no **finding** evidence: MCP\nscans aren't ingested to the control plane, so the findings map is empty\nhere. This is the exact mirror of the CLI path (`compute_compliance`), which\nhas scan findings but no incidents — both are honest partial views, and both\ngo through the same `compute_compliance_from_counts` kernel.",
+        "operationId": "compliance",
+        "responses": {
+          "200": {
+            "description": "compliance evidence pack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceReportSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "plan required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanRequiredResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/compliance/evidence": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "A regulator evidence pack: the org's live decision/incident/audit evidence\nmapped to three external framework sections (EU AI Act, US SR 11-7\nmodel-risk guidance, SOC 2) and honestly graded per control. A second view\nover data `/v1/compliance` already exposes, never a new signal and never a\nmutation; see `EvidenceStatus`'s doc for exactly how a grade is decided.\nReadable by any role, like the other reads; a paid feature.",
+        "operationId": "compliance_evidence",
+        "responses": {
+          "200": {
+            "description": "regulator evidence pack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidencePackResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "plan required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanRequiredResponse"
                 }
               }
             }
@@ -186,6 +419,102 @@
           },
           "404": {
             "description": "unknown device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "The caller org's open incidents, most-recently-seen first. Readable by any\nrole (viewer or admin), like the other read endpoints.",
+        "operationId": "incidents",
+        "responses": {
+          "200": {
+            "description": "open incidents, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Incident"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}/ack": {
+      "post": {
+        "tags": [
+          "mutations"
+        ],
+        "summary": "Acknowledge an incident (admin only). Sets `acknowledged = true`.",
+        "operationId": "ack_incident",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "incident id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "incident acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AckResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "unknown incident",
             "content": {
               "application/json": {
                 "schema": {
@@ -374,6 +703,68 @@
         }
       }
     },
+    "/v1/replay/{run}": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "Replay of one run: its ordered agent-event timeline (if\n`TOKENFUSE_CLOUD_REPLAY_EVENTS` is configured), joined with the run's\nincidents and any audit-chain entries that reference it. `RunAgg` is an\naggregate only, with no ordered per-call list, so the timeline itself\ncomes from the append-only agent-event NDJSON export (see\n`crate::replay`), not the in-memory store. Read-only: no enforcement or\nstored state changes. A paid feature, gated like the rest of the audit\ntrail; the run must belong to the caller's org or this 404s (never leaks\nwhether a run id exists for a different org).",
+        "operationId": "replay",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "description": "run id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ordered replay of one run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "plan required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanRequiredResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "unknown run for this org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/runs": {
       "get": {
         "tags": [
@@ -532,6 +923,37 @@
         }
       }
     },
+    "/v1/savings": {
+      "get": {
+        "tags": [
+          "reads"
+        ],
+        "summary": "The caller org's FinOps savings: budget-protection blocked (avoided) spend,\nsemantic-cache savings, and model-router savings, plus their total.",
+        "operationId": "savings",
+        "responses": {
+          "200": {
+            "description": "org FinOps savings totals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavingsSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/series": {
       "get": {
         "tags": [
@@ -638,6 +1060,17 @@
   },
   "components": {
     "schemas": {
+      "AckResponse": {
+        "type": "object",
+        "required": [
+          "acknowledged"
+        ],
+        "properties": {
+          "acknowledged": {
+            "type": "string"
+          }
+        }
+      },
       "ActivityBody": {
         "type": "object",
         "required": [
@@ -652,6 +1085,43 @@
           "run_id": {
             "type": "string",
             "description": "The run this Live Activity tracks."
+          }
+        }
+      },
+      "AgentAgg": {
+        "type": "object",
+        "description": "Per-agent spend rollup (P2), folded from an org's [`RunAgg`]s by `agent_id`.\nThe empty-string `agent_id` is kept as an explicit \"unattributed\" bucket.",
+        "required": [
+          "agent_id",
+          "spent_microusd",
+          "calls",
+          "runs",
+          "last_seen_millis"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "The agent this bucket rolls up; `\"\"` for unattributed runs."
+          },
+          "calls": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "last_seen_millis": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Distinct runs attributed to this agent.",
+            "minimum": 0
+          },
+          "spent_microusd": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Real spend (blocked/avoided-spend rows already excluded upstream)."
           }
         }
       },
@@ -698,6 +1168,121 @@
           }
         }
       },
+      "AuditEntrySchema": {
+        "type": "object",
+        "description": "OpenAPI documentation mirror of `tokenfuse_core::audit::AuditEntry` — the\n`/v1/audit` handler returns the core type, which serializes identically. It\nlives here (rather than deriving `ToSchema` in core) to keep `tokenfuse-core`\nfree of the web/OpenAPI `utoipa` dependency.",
+        "required": [
+          "seq",
+          "ts_millis",
+          "actor",
+          "action",
+          "subject",
+          "detail",
+          "prev_hash",
+          "entry_hash"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "entry_hash": {
+            "type": "string"
+          },
+          "prev_hash": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "subject": {
+            "type": "string"
+          },
+          "ts_millis": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AuditManifest": {
+        "type": "object",
+        "description": "A cryptographically-signed manifest over an org's audit chain tip. The\nsignature covers `tokenfuse_core::audit::manifest_signing_bytes(org,\ntip_seq, tip_hash, entry_count, signed_at_millis)`; an auditor re-derives\nthose bytes from these fields and verifies `signature_b64` against\n`public_key_b64` with any standard ES256 tool — no trust in the store\nrequired.",
+        "required": [
+          "org",
+          "tip_seq",
+          "tip_hash",
+          "entry_count",
+          "signed_at_millis",
+          "algorithm",
+          "signature_b64",
+          "public_key_b64"
+        ],
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "description": "The signature algorithm — always `\"ES256\"` (ECDSA P-256 / SHA-256)."
+          },
+          "entry_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total entries in the chain at signing time (`0` for an empty chain).",
+            "minimum": 0
+          },
+          "org": {
+            "type": "string",
+            "description": "The organization whose chain this manifest attests."
+          },
+          "public_key_b64": {
+            "type": "string",
+            "description": "base64 (standard) of the SEC1/X9.63 *uncompressed* public point, so an\nauditor can verify with any standard ECDSA tool."
+          },
+          "signature_b64": {
+            "type": "string",
+            "description": "base64 (standard) of the raw 64-byte `r||s` (IEEE P1363) ES256 signature\nover the canonical bytes."
+          },
+          "signed_at_millis": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the manifest was signed, epoch millis. Part of the signed bytes."
+          },
+          "tip_hash": {
+            "type": "string",
+            "description": "The tip entry's `entry_hash` (`\"\"` for an empty chain)."
+          },
+          "tip_seq": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The tip entry's `seq` (`0` for an empty chain).",
+            "minimum": 0
+          }
+        }
+      },
+      "AuditVerifyResponse": {
+        "type": "object",
+        "description": "Result of an audit-chain integrity check. `ok` is `true` for an intact (or\nempty) chain; otherwise `break_index` is the 0-based position of the first\nbroken link.",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "break_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
       "BudgetBody": {
         "type": "object",
         "required": [
@@ -733,6 +1318,10 @@
           "run_id"
         ],
         "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "Attribution: which logical agent made the call (P2). Accepted for\nforward-compat; aggregation (/v1/agents) lands in a later PR."
+          },
           "cost_microusd": {
             "type": "integer",
             "format": "int64"
@@ -748,13 +1337,30 @@
           "model": {
             "type": "string"
           },
+          "on_behalf_of": {
+            "type": "string",
+            "description": "Raw, unparsed `X-Fuse-On-Behalf-Of` delegation chain (P3,\nagent-passport SPEC.md §5). `\"\"` when unset. Matches\n`crates/gateway/src/sink.rs::CallRecord::on_behalf_of` on the wire (a\ncomma-separated string, not an array). Accepted for forward-compat; no\naggregation reads this field yet."
+          },
+          "outcome": {
+            "type": "string",
+            "description": "Opaque outcome tag, from `X-Fuse-Outcome` (P4, unit economics). `\"\"`\nwhen unset. Matches `crates/gateway/src/sink.rs::CallRecord::outcome`\non the wire. Accepted for forward-compat; no aggregation reads this\nfield yet."
+          },
           "output_tokens": {
             "type": "integer",
             "format": "int64",
             "minimum": 0
           },
+          "parent_run_id": {
+            "type": "string",
+            "description": "The run's parent, from `X-Fuse-Parent-Run-Id` (P3, agent-passport).\n`\"\"` when the run has no parent. Matches\n`crates/gateway/src/sink.rs::CallRecord::parent_run_id` on the wire.\nAccepted for forward-compat; no aggregation reads this field yet."
+          },
           "run_id": {
             "type": "string"
+          },
+          "saved_microusd": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cache-hit savings in microdollars (P2). Accepted for forward-compat;\naggregation (/v1/savings) lands in a later PR."
           },
           "step": {
             "type": "integer",
@@ -767,6 +1373,113 @@
           }
         }
       },
+      "ComplianceReportSchema": {
+        "type": "object",
+        "description": "OpenAPI mirror of `tokenfuse_core::compliance::ComplianceReport` — the full\nevidence pack returned by `/v1/compliance`. Mirrors the core shape exactly\n(the handler returns the core type). `framework_versions` is a list of\n`[framework_id, human_name, version_or_retrieval_date]` triples.",
+        "required": [
+          "generated_note",
+          "framework_versions",
+          "controls",
+          "decisions_total",
+          "findings_total"
+        ],
+        "properties": {
+          "controls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlEvidenceSchema"
+            },
+            "description": "Per-control realized evidence, in catalog order."
+          },
+          "decisions_total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "findings_total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "framework_versions": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "`[framework_id, human_name, version]` triples the mappings were cited\nagainst."
+          },
+          "generated_note": {
+            "type": "string",
+            "description": "Standing disclaimer — this is evidence, not a certification."
+          }
+        }
+      },
+      "ControlEvidenceSchema": {
+        "type": "object",
+        "description": "OpenAPI mirror of `tokenfuse_core::compliance::ControlEvidence` — one\ncontrol's realized evidence. The `/v1/compliance` handler returns the core\ntype, which serializes identically; the schema lives here (not deriving\n`ToSchema` in core) to keep `tokenfuse-core` free of the `utoipa` dependency.",
+        "required": [
+          "control_id",
+          "title",
+          "enforcement",
+          "decision_counts",
+          "finding_counts",
+          "incident_count",
+          "covered",
+          "evidence_seen"
+        ],
+        "properties": {
+          "control_id": {
+            "type": "string"
+          },
+          "covered": {
+            "type": "boolean"
+          },
+          "decision_counts": {
+            "type": "object",
+            "description": "Watched wire `decision` -> times it fired.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "enforcement": {
+            "type": "string",
+            "description": "Honesty classification, serialized lowercase (`enforced`/`partial`/\n`documented`).",
+            "example": "enforced"
+          },
+          "evidence_seen": {
+            "type": "boolean"
+          },
+          "finding_counts": {
+            "type": "object",
+            "description": "Watched finding `kind` -> times it appeared.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "incident_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cloud incidents aggregating into this control.",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "ErrorResponse": {
         "type": "object",
         "required": [
@@ -775,6 +1488,174 @@
         "properties": {
           "error": {
             "type": "string"
+          }
+        }
+      },
+      "EvidenceControl": {
+        "type": "object",
+        "description": "One control's entry in a regulator evidence-pack framework section: the\nTokenFuse control plus the external clause it is cited against, honestly\ngraded, and the concrete signal the grade was decided from.",
+        "required": [
+          "control",
+          "status",
+          "evidence"
+        ],
+        "properties": {
+          "control": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EvidenceStatus"
+          }
+        }
+      },
+      "EvidencePackResponse": {
+        "type": "object",
+        "description": "A regulator evidence pack: the same live decision/incident/audit data\nbehind `/v1/compliance`, additionally mapped to three external framework\nsections and honestly graded per control (see `EvidenceStatus`). Read-only\nand additive: this changes no stored state and does not affect\nenforcement; it exists so an operator can hand a regulator a mapped,\nevidence-backed view without the `/v1/compliance` contract itself moving.",
+        "required": [
+          "generated_note",
+          "org",
+          "eu_ai_act",
+          "sr_11_7",
+          "soc2",
+          "audit_chain_verified",
+          "audit_entries",
+          "decisions_total",
+          "incidents_total"
+        ],
+        "properties": {
+          "audit_break_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "0-based index of the first broken link, when `audit_chain_verified` is\n`false`.",
+            "minimum": 0
+          },
+          "audit_chain_verified": {
+            "type": "boolean",
+            "description": "Whether this org's audit chain verifies end-to-end right now (see\n`Store::audit_verify`)."
+          },
+          "audit_entries": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "decisions_total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "eu_ai_act": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceControl"
+            }
+          },
+          "generated_note": {
+            "type": "string",
+            "description": "Standing disclaimer, shared with `/v1/compliance`: evidence, not a\ncertification."
+          },
+          "incidents_total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "org": {
+            "type": "string"
+          },
+          "soc2": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceControl"
+            }
+          },
+          "sr_11_7": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceControl"
+            },
+            "description": "US Federal Reserve SR 11-7 model-risk-management guidance."
+          }
+        }
+      },
+      "EvidenceStatus": {
+        "type": "string",
+        "description": "Honesty classification for one control in the regulator evidence pack\n(`/v1/compliance/evidence`), decided from THIS org's live data, not a\nstatic catalog claim: `Enforced` only when the org has produced concrete\nevidence the control fired; `Partial` when the mechanism is caveated (see\n`evidence_status`) or an integrity check itself failed; `Documented`\notherwise (implemented and described, but no evidence yet for this org).\nSerialized as the bare variant name (`\"Enforced\"` / `\"Partial\"` /\n`\"Documented\"`).",
+        "enum": [
+          "Enforced",
+          "Partial",
+          "Documented"
+        ]
+      },
+      "Incident": {
+        "type": "object",
+        "description": "An aggregated, first-class anomaly for an org (P2 incidents). Repeated or\nsevere detections are folded into one `Incident` keyed by a STABLE\n[`incident_id`] (`\"{kind}:{run_or_agent}\"`) so later triggers bump\n`occurrences`/`last_seen_millis` in place rather than piling up duplicates.\nPersisted in the snapshot so open incidents — and the push-dedup clock\n(`last_notified_millis`) — survive a restart.",
+        "required": [
+          "id",
+          "org",
+          "kind",
+          "severity",
+          "first_seen_millis",
+          "last_seen_millis",
+          "occurrences",
+          "acknowledged",
+          "last_notified_millis"
+        ],
+        "properties": {
+          "acknowledged": {
+            "type": "boolean"
+          },
+          "agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent attributed at trip time, when the gateway tagged the run."
+          },
+          "first_seen_millis": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable dedup id, `\"{kind}:{run_or_agent}\"`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Detector kind: `budget_exhausted` | `sustained_loop` | `spend_spike` |\n`fanout_explosion`."
+          },
+          "last_notified_millis": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Epoch millis of the last push fired for this incident — the SINGLE\nsource of truth for push dedup (see `push.rs`). `0` until first notified."
+          },
+          "last_seen_millis": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "occurrences": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many times this incident's threshold has tripped.",
+            "minimum": 0
+          },
+          "org": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run this incident is scoped to, if run-scoped (`spend_spike` is\norg-scoped and leaves this `None`)."
+          },
+          "severity": {
+            "type": "string",
+            "description": "Reused from `tokenfuse_core` — rendered as a lowercase string in JSON.",
+            "example": "high"
           }
         }
       },
@@ -896,6 +1777,151 @@
           }
         }
       },
+      "PlanRequiredError": {
+        "type": "object",
+        "required": [
+          "type",
+          "feature",
+          "org",
+          "upgrade_url"
+        ],
+        "properties": {
+          "feature": {
+            "type": "string",
+            "description": "The gated feature (see `entitlements::Feature::as_str`)."
+          },
+          "org": {
+            "type": "string",
+            "description": "The org that needs an upgrade."
+          },
+          "type": {
+            "type": "string",
+            "description": "Always `\"plan_required\"`."
+          },
+          "upgrade_url": {
+            "type": "string",
+            "description": "Where to upgrade."
+          }
+        }
+      },
+      "PlanRequiredResponse": {
+        "type": "object",
+        "description": "Envelope for a `402 plan_required` denial from the entitlements gate. The\nerror is an object (not the flat string of [`ErrorResponse`]) so clients can\nkey an upgrade CTA off `feature`/`upgrade_url`.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/PlanRequiredError"
+          }
+        }
+      },
+      "ReplayEvent": {
+        "type": "object",
+        "description": "One parsed NDJSON line from the agent-event export.\n\nA cloud-local mirror of `tokenfuse_core::agent_event::AgentEvent`'s wire\nshape, not the core type itself: that struct derives `Serialize` only (no\n`Deserialize`), and keeping this mirror here also matches this repo's rule\nthat core types reach the Cloud API surface only via cloud-local DTOs.\n\nEvery field is best-effort (`#[serde(default)]`), so an envelope from an\nolder or newer schema revision still parses; only a line that isn't even a\nvalid JSON object counts as malformed (see `read_run_events`).",
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "data": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "on_behalf_of": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "prev_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schema": {
+            "type": "string"
+          },
+          "severity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "ts": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "ReplayResponse": {
+        "type": "object",
+        "description": "Response body for `GET /v1/replay/{run}`.",
+        "required": [
+          "run_id",
+          "configured",
+          "events",
+          "event_count",
+          "malformed_skipped",
+          "incidents",
+          "audit"
+        ],
+        "properties": {
+          "audit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEntrySchema"
+            },
+            "description": "Audit-chain entries whose subject is this run (e.g. kills, budget\nchanges), oldest first."
+          },
+          "configured": {
+            "type": "boolean",
+            "description": "Whether `TOKENFUSE_CLOUD_REPLAY_EVENTS` is configured on this server\n(independent of whether any events matched this run)."
+          },
+          "event_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReplayEvent"
+            },
+            "description": "This run's agent-events, ts-ascending."
+          },
+          "incidents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Incident"
+            },
+            "description": "This run's open incidents (see `Store::incidents`)."
+          },
+          "malformed_skipped": {
+            "type": "integer",
+            "description": "NDJSON lines in the configured file that failed to parse (skipped, not\ncounted as this run's events).",
+            "minimum": 0
+          },
+          "run_id": {
+            "type": "string"
+          }
+        }
+      },
       "RunAgg": {
         "type": "object",
         "description": "The aggregated state of one run within an organization.",
@@ -910,6 +1936,10 @@
           "killed"
         ],
         "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "Which logical agent this run is attributed to (P2). Empty when the\ngateway didn't tag the calls — folded into the \"unattributed\" bucket by\n[`Store::agents`]. `serde(default)` so pre-P2 snapshots still load."
+          },
           "cache_hits": {
             "type": "integer",
             "format": "int64",
@@ -941,6 +1971,45 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "SavingsSummary": {
+        "type": "object",
+        "description": "Per-org FinOps savings summary (P2). `total_saved_microusd` is the marketing\nheadline: budget-protection blocked spend plus semantic-cache savings plus\nmodel-router savings.",
+        "required": [
+          "blocked_spend_microusd",
+          "cache_saved_microusd",
+          "router_saved_microusd",
+          "budget_breaks",
+          "total_saved_microusd"
+        ],
+        "properties": {
+          "blocked_spend_microusd": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Avoided spend from budget-protection blocks (runaway spend stopped)."
+          },
+          "budget_breaks": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Distinct runs stopped by at least one budget-protection block.",
+            "minimum": 0
+          },
+          "cache_saved_microusd": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Dollars served for free by the semantic cache."
+          },
+          "router_saved_microusd": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Dollars avoided by the model router routing a call to a cheaper model\nthan the one requested. A distinct dimension from `cache_saved_microusd`\neven though both ride the same wire `saved_microusd` column: a cache\nhit and a router-routed call are mutually exclusive outcomes for one\ncall (see the fold in `ingest_at`)."
+          },
+          "total_saved_microusd": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`blocked_spend_microusd + cache_saved_microusd + router_saved_microusd`."
           }
         }
       },
@@ -977,7 +2046,7 @@
       },
       "Summary": {
         "type": "object",
-        "description": "Org-wide totals.",
+        "description": "Org-wide totals. `calls`/`spent_microusd` are exact across the org's\nentire ingest history; `runs` is the currently-retained distinct run\ncount, bounded by `MAX_RUNS_PER_ORG` — see `Store::summary`.",
         "required": [
           "runs",
           "calls",
