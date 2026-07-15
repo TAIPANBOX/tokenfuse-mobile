@@ -157,7 +157,7 @@ Everything you see is built around a single idea: **a fuse that carries current 
 | 🟡 **Amber** | Warming. Nearing the cap. |
 | 🔴 **Ember** | Over cap, or the kill. |
 
-The mark itself, an amber→ember tile with a black-keyline bolt, is the app icon, the pairing screen's emblem, and the dashboard's logo, all the same. Interactive design mockups live in [`design/`](design/) (open the `.html` files in a browser).
+The mark itself, an amber→ember tile with a black-keyline bolt, is the app icon, the pairing screen's emblem, and the dashboard's logo, all the same. Interactive design mockups live in [`docs/`](docs/) and run live at [taipanbox.github.io/tokenfuse-mobile](https://taipanbox.github.io/tokenfuse-mobile/) (simulated data, numbers tick in the browser).
 
 ---
 
@@ -212,7 +212,7 @@ It has **not** had a production hardening pass or a security review, so treat it
 - **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)** is the gateway + Cloud control plane this app talks to.
 - **[Web dashboard](https://github.com/TAIPANBOX/tokenfuse/tree/main/cloud/dashboard):** the same fleet, the same *fuse*, in a browser.
 - **[Mobile plan & wire protocol](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/14-mobile-companion.md)** · **[Design system](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/16-design-system.md)**
-- **[`design/`](design/):** interactive iPhone / Watch / dashboard mockups.
+- **[`docs/`](docs/):** interactive iPhone / Watch / dashboard mockups, served live at [taipanbox.github.io/tokenfuse-mobile](https://taipanbox.github.io/tokenfuse-mobile/).
 
 ---
 
