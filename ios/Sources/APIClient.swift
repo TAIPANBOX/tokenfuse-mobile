@@ -97,4 +97,12 @@ struct APIClient: Sendable {
 
     /// Replay of one run: its event timeline joined with incidents + audit. Paid feature.
     func replay(run: String) async throws -> ReplayResponse { try await get("v1/replay/\(run)") }
+
+    /// The relay's bounded, pre-computed exception queue (`GET /relay/v1/exceptions`,
+    /// docs/PHASE5.md W3): aggregates plus only at-risk/near-cap/over-cap/
+    /// runaway/pending-approval items, never the full run list. Meaningful
+    /// only when `baseURL` is a relay, not a direct Cloud plane, since the
+    /// relay is the only server that implements this path; reuses the same
+    /// `get` helper (bearer auth, snake_case decode) as every other read.
+    func exceptions() async throws -> ExceptionSnapshot { try await get("relay/v1/exceptions") }
 }

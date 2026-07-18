@@ -39,6 +39,9 @@ targets:
         # production planes use HTTPS. Not arbitrary loads.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # Relay QR pairing scans a barcode with VisionKit's DataScannerViewController
+        # (docs/PHASE5.md W3) — required or the app crashes on first camera access.
+        NSCameraUsageDescription: "TokenFuse Pocket uses the camera to scan the pairing QR code shown on your Genaryx desktop."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taipanbox.tokenfuse

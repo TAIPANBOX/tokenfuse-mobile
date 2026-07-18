@@ -1,10 +1,14 @@
 import SwiftUI
 
-/// The signed-in root: a four-tab shell (Fleet / FinOps / Incidents / Governance)
-/// that replaces the old header-button navigation off `RunsView`. Owns the
-/// selected tab so a deep-linked run (a notification tap via `Router.shared.openRun`,
-/// or the `-openRun` launch arg) can bring the Fleet tab to the front — `RunsView`
-/// still does the actual push, via its own `Router.shared.openRun` observer.
+/// The signed-in root. A direct-to-Cloud dev-harness/local session (free
+/// tier, `session.pin == nil`) gets the full four-tab shell (Fleet / FinOps /
+/// Incidents / Governance), unchanged. A relay-paired session (docs/PHASE5.md
+/// W3; itrat-console/13 D12: the paid remote pager, `session.pin != nil`)
+/// gets ONLY the exception queue: the relay's W1 read-proxy allowlists just
+/// `/v1/summary` + `/relay/v1/exceptions` (`proxy.rs`), so FinOps/Incidents/
+/// Governance have no route to succeed against it and would only ever show a
+/// dead "can't reach the plane" card. Showing them would also violate the
+/// "exception-first, never browse the fleet" rule the redesign exists for.
 struct MainTabView: View {
     let account: Account
     var onUnpair: () -> Void
@@ -15,37 +19,46 @@ struct MainTabView: View {
         case fleet, finops, incidents, governance
     }
 
+    private var isRelayPaired: Bool { account.session.pin != nil }
+
     var body: some View {
-        TabView(selection: $selection) {
-            RunsView(account: account, onUnpair: onUnpair)
-                .tabItem { Label("Fleet", systemImage: "bolt.horizontal") }
-                .tag(Tab.fleet)
-
-            FinOpsView(account: account)
-                .tabItem { Label("FinOps", systemImage: "dollarsign.circle") }
-                .tag(Tab.finops)
-
+        if isRelayPaired {
             NavigationStack {
-                IncidentsView(account: account)
+                ExceptionQueueView(account: account, onUnpair: onUnpair)
             }
-            .tabItem { Label("Incidents", systemImage: "exclamationmark.triangle") }
-            .tag(Tab.incidents)
+            .tint(Palette.iris)
+        } else {
+            TabView(selection: $selection) {
+                RunsView(account: account, onUnpair: onUnpair)
+                    .tabItem { Label("Fleet", systemImage: "bolt.horizontal") }
+                    .tag(Tab.fleet)
 
-            NavigationStack {
-                GovernanceView(account: account)
+                FinOpsView(account: account)
+                    .tabItem { Label("FinOps", systemImage: "dollarsign.circle") }
+                    .tag(Tab.finops)
+
+                NavigationStack {
+                    IncidentsView(account: account)
+                }
+                .tabItem { Label("Incidents", systemImage: "exclamationmark.triangle") }
+                .tag(Tab.incidents)
+
+                NavigationStack {
+                    GovernanceView(account: account)
+                }
+                .tabItem { Label("Governance", systemImage: "checkmark.seal") }
+                .tag(Tab.governance)
             }
-            .tabItem { Label("Governance", systemImage: "checkmark.seal") }
-            .tag(Tab.governance)
-        }
-        .tint(Palette.iris)
-        .toolbarBackground(Palette.ink, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
-        .toolbarColorScheme(.dark, for: .tabBar)
-        .onChange(of: Router.shared.openRun) { _, newValue in
-            // A run was requested (notification tap while running, or a fresh
-            // launch arg) — bring Fleet forward so RunsView's own observer,
-            // which does the actual push, is on-screen when it fires.
-            if newValue != nil { selection = .fleet }
+            .tint(Palette.iris)
+            .toolbarBackground(Palette.ink, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+            .toolbarColorScheme(.dark, for: .tabBar)
+            .onChange(of: Router.shared.openRun) { _, newValue in
+                // A run was requested (notification tap while running, or a fresh
+                // launch arg) — bring Fleet forward so RunsView's own observer,
+                // which does the actual push, is on-screen when it fires.
+                if newValue != nil { selection = .fleet }
+            }
         }
     }
 }
@@ -126,6 +139,9 @@ struct DeviceSettingsSheet: View {
                     settingsRow(label: "Org", value: account.session.org)
                     settingsRow(label: "Plane", value: account.reads.baseURL.host() ?? account.session.planeURL)
                     settingsRow(label: "Role", value: account.session.role)
+                    if let pin = account.session.pin {
+                        settingsRow(label: "TLS pin", value: "\(pin.prefix(12))…")
+                    }
                 }
                 .padding(14)
                 .background(Palette.panel, in: RoundedRectangle(cornerRadius: 16))

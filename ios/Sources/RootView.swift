@@ -11,7 +11,7 @@ struct RootView: View {
             if let account {
                 MainTabView(account: account, onUnpair: unpair)
             } else {
-                PairView { account = $0 }
+                ConnectView { account = $0 }
             }
         }
         .task {

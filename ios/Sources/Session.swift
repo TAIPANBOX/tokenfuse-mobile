@@ -8,6 +8,15 @@ struct DeviceSession: Codable, Sendable {
     var deviceToken: String
     var org: String
     var role: String
+    /// SPKI-SHA256 pin (base64), enforced on every connection to `planeURL`
+    /// when this session came from the relay's QR pairing flow (docs/PHASE5.md
+    /// W3; itrat-console/13 D12.2c step 2). `nil` for a direct-to-Cloud
+    /// dev-harness pairing (`-autoPairURL`/`-autoPairCode`, or the manual
+    /// "pair to a local plane" path): there is no relay self-signed cert to
+    /// pin there, so the connection uses ordinary system trust evaluation
+    /// (ATS's `NSAllowsLocalNetworking` already covers plain HTTP to a dev
+    /// plane on the LAN).
+    var pin: String? = nil
 }
 
 /// Persistence for the paired session + signing key (Keychain).
@@ -94,12 +103,30 @@ final class Account {
     let session: DeviceSession
     private let key: DeviceKey
     let reads: APIClient
+    /// The transport used for BOTH reads (`reads`, above) and signed
+    /// mutations (`send`, below): pinned to the relay's own SPKI hash when
+    /// `session.pin` is set, since a self-signed relay cert would simply
+    /// fail ordinary system trust evaluation (the pin IS the trust root,
+    /// itrat-console/13 D12.2c). `.shared` for a direct-to-Cloud dev-harness
+    /// session, which has no relay cert to pin against.
+    private let transport: URLSession
 
     init(session: DeviceSession, key: DeviceKey) {
         self.session = session
         self.key = key
         let base = URL(string: session.planeURL) ?? URL(string: "http://localhost")!
-        self.reads = APIClient(baseURL: base, token: session.deviceToken)
+        let transport: URLSession
+        if let pin = session.pin {
+            transport = URLSession(
+                configuration: .ephemeral,
+                delegate: PinnedURLSessionDelegate(pinnedSpkiSha256B64: pin),
+                delegateQueue: nil
+            )
+        } else {
+            transport = .shared
+        }
+        self.transport = transport
+        self.reads = APIClient(baseURL: base, token: session.deviceToken, session: transport)
     }
 
     func kill(run: String) async throws {
@@ -154,7 +181,7 @@ final class Account {
     }
 
     private func send(_ request: URLRequest) async throws {
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await transport.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIClient.ClientError.notHTTP }
         guard (200..<300).contains(http.statusCode) else { throw APIClient.ClientError.http(http.statusCode) }
     }
