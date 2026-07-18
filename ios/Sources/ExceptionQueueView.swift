@@ -53,6 +53,11 @@ struct ExceptionQueueView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await reload() } }
         }
+        .onChange(of: store.deauthorized) { _, gone in
+            // The relay revoked this device (Disconnect / re-pair elsewhere):
+            // drop the dead session and fall back to the Connect screen.
+            if gone { onUnpair() }
+        }
         .refreshable { await reload() }
         .alert("Kill run \(killTarget?.runId ?? "")?", isPresented: killAlertBinding, presenting: killTarget) { item in
             Button("Kill", role: .destructive) { kill(item) }
@@ -87,6 +92,8 @@ struct ExceptionQueueView: View {
             do {
                 try await account.kill(run: runId)
                 await reload() // confirm from data, not optimistically
+            } catch APIClient.ClientError.http(401) {
+                onUnpair() // device was revoked mid-action - back to Connect
             } catch {
                 actionError = error.localizedDescription
             }
@@ -100,6 +107,8 @@ struct ExceptionQueueView: View {
             do {
                 try await account.ackIncident(id: incidentId)
                 await reload() // confirm from data, not optimistically
+            } catch APIClient.ClientError.http(401) {
+                onUnpair() // device was revoked mid-action - back to Connect
             } catch {
                 actionError = error.localizedDescription
             }
@@ -247,6 +256,14 @@ final class ExceptionQueueStore {
     private(set) var phase: Phase = .idle
     private(set) var aggregates: ExceptionAggregates?
     private(set) var queue: [ExceptionItem] = []
+    /// Set when the relay rejects our device token (HTTP 401): the device was
+    /// disconnected/revoked server-side - the desktop's Disconnect button
+    /// (`admin::disconnect`), or another phone re-pairing into the single
+    /// device slot. The view returns to the Connect screen instead of silently
+    /// showing a frozen last-known-good queue behind a green "connected" dot.
+    /// A TRANSIENT failure (network drop, 5xx) is deliberately NOT this: it
+    /// keeps the last-known-good snapshot unchanged, exactly as before.
+    private(set) var deauthorized = false
 
     func load(using client: APIClient) async {
         if aggregates == nil, phase != .loaded { phase = .loading }
@@ -255,6 +272,8 @@ final class ExceptionQueueStore {
             aggregates = snapshot.aggregates
             queue = snapshot.queue
             phase = .loaded
+        } catch APIClient.ClientError.http(401) {
+            deauthorized = true
         } catch {
             if aggregates == nil {
                 phase = .failed(error.localizedDescription)
