@@ -76,10 +76,72 @@ struct ExceptionItem: Codable, Identifiable, Sendable, Hashable {
     let lastSeenUnix: Int64
     let acknowledged: Bool
     let killed: Bool
+    /// C3's best-effort Felyx annotation (docs/PHASE6-C3.md C3-W2,
+    /// `exceptions.rs::ExceptionItem::copilot`), attached AFTER the
+    /// deterministic push for a HARD item, or never at all. The relay marks
+    /// it `#[serde(skip_serializing_if = "Option::is_none")]`, so it is
+    /// OMITTED from the wire entirely when absent - never sent as `null`.
+    /// This struct has no custom `init(from:)`, so `Codable` is fully
+    /// compiler-synthesized; a plain `Optional` stored property already
+    /// decodes a missing key as `nil` with no extra work, exactly like
+    /// `runId`/`incidentId`/`severity`/`fraction`/`budgetMicros` above.
+    let copilot: CopilotAnnotation?
 
     var id: String { key }
     var spent: Double { spentMicrousd.usd }
     var budget: Double? { budgetMicros.map { $0.usd } }
+}
+
+/// C3's Felyx annotation on a queue item (docs/PHASE6-C3.md C3-W1,
+/// `genaryx_copilot::action::CopilotAnnotation`): a one-line summary, an
+/// optional recommended action, the model's confidence, and the cross-plane
+/// chain that produced it. It only ever ENRICHES a pushed/polled exception -
+/// it can never suppress or delay the deterministic HARD push (that floor is
+/// relay code, not this data).
+///
+/// `chain` is `#[serde(default)]` on the relay side: today it is always sent
+/// alongside `summary`/`confidence`, but that default means a future/older
+/// relay build is free to omit it. Swift's compiler-synthesized `Codable`
+/// does NOT honor a stored property's default value for a missing key (only
+/// `Optional` types get that for free) - so this type gets a hand-written
+/// `init(from:)` that falls back to `[]` via `decodeIfPresent`, exactly so a
+/// missing/omitted `chain` key can never fail decoding the whole annotation
+/// (and, transitively, the whole `ExceptionItem`/`ExceptionSnapshot`).
+/// `.convertFromSnakeCase` (set on the decoder in `APIClient`) still applies
+/// to nested keyed containers built from a manual `init(from:)` exactly as it
+/// does for synthesized ones, so `recommended_action` on the wire matches
+/// `.recommendedAction` here with no explicit rename needed.
+struct CopilotAnnotation: Codable, Sendable, Hashable {
+    let summary: String
+    let recommendedAction: CopilotRecommendedAction?
+    let confidence: Double
+    let chain: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case summary, recommendedAction, confidence, chain
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        summary = try container.decode(String.self, forKey: .summary)
+        recommendedAction = try container.decodeIfPresent(CopilotRecommendedAction.self, forKey: .recommendedAction)
+        confidence = try container.decode(Double.self, forKey: .confidence)
+        chain = try container.decodeIfPresent([String].self, forKey: .chain) ?? []
+    }
+}
+
+/// Minimal mirror of the relay's `ProposedAction`
+/// (`genaryx_copilot::action::ProposedAction`) - just the two fields the
+/// queue card needs for a "suggests: <kind> <target>" chip. The wire also
+/// carries `params` (arbitrary JSON), `rationale`, `confidence`,
+/// `evidence_refs` and `policy_context`; `Codable`'s synthesized decode only
+/// ever pulls the keys a type declares; it silently ignores every other key
+/// in the JSON object, so this deliberately-small struct decodes the same
+/// payload the full desktop-side type does, unaffected by the fields it
+/// doesn't model.
+struct CopilotRecommendedAction: Codable, Sendable, Hashable {
+    let kind: String
+    let target: String
 }
 
 /// Fleet-wide totals the relay pre-computes alongside the queue

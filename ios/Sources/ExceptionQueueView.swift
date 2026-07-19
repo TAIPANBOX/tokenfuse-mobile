@@ -326,6 +326,10 @@ struct ExceptionRow: View {
                 .font(.mono).foregroundStyle(Palette.dim)
             }
 
+            if let copilot = item.copilot {
+                felyxAnnotation(copilot)
+            }
+
             actionRow
         }
         .padding(14)
@@ -342,6 +346,36 @@ struct ExceptionRow: View {
         .opacity(item.killed ? 0.6 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+    }
+
+    /// The C3 payoff (docs/PHASE6-C3.md C3-W2): "a small optional mobile
+    /// render shows the annotation". Deliberately quiet - a sparkles glyph +
+    /// the one-line summary in `Palette.dim` (the same treatment as the run
+    /// id / timestamp / spent-cap row above it), with `Palette.iris` (the
+    /// existing "calm system" accent already used for Acknowledge and
+    /// Settings, distinct from the amber/ember heat colors) reserved for the
+    /// sparkles glyph and the recommended-action chip, so it never competes
+    /// with the headline or the class pill for attention. Skip-graceful:
+    /// this whole view only appears when `item.copilot` decoded to non-nil.
+    private func felyxAnnotation(_ copilot: CopilotAnnotation) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Palette.iris)
+                Text(copilot.summary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Palette.dim)
+            }
+            if let action = copilot.recommendedAction {
+                Text("suggests: \(action.kind) \(action.target)")
+                    .font(.system(size: 9, weight: .semibold)).tracking(0.3)
+                    .foregroundStyle(Palette.iris)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(Palette.iris.opacity(0.1), in: Capsule())
+                    .overlay(Capsule().stroke(Palette.iris.opacity(0.35)))
+            }
+        }
     }
 
     private var classPill: some View {
@@ -392,6 +426,16 @@ struct ExceptionRow: View {
         parts.append("spent \(String(format: "$%.2f", item.spent))")
         if let budget = item.budget { parts.append("of \(String(format: "$%.2f", budget))") }
         parts.append(item.killed ? "killed" : "not yet resolved")
+        if let copilot = item.copilot {
+            // The row collapses into ONE accessibility element
+            // (`.accessibilityElement(children: .ignore)` below), so
+            // `felyxAnnotation`'s own text is otherwise unreachable by
+            // VoiceOver - fold it in here instead of labeling it separately.
+            parts.append("Felyx: \(copilot.summary)")
+            if let action = copilot.recommendedAction {
+                parts.append("suggests \(action.kind) \(action.target)")
+            }
+        }
         return parts.joined(separator: ", ")
     }
 
