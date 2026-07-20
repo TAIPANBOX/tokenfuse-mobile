@@ -59,11 +59,27 @@ struct ConnectView: View {
             }
         }
         .task {
-            // Screenshot / UI-check hook: pair automatically from launch args.
-            // Unchanged, direct-to-Cloud dev-harness path (D12.2's own note:
+            // Screenshot / UI-check hooks, DEBUG builds only. Both accept an
+            // attacker-chosen address, so neither belongs in a shipped binary;
+            // the paste-link field below is already `#if DEBUG` and these now
+            // match it.
+            #if DEBUG
+            guard !busy else { return }
+            // The RELAY path: the whole `genaryx-pocket://` link, exactly what
+            // the QR carries. The simulator has no camera, and driving the
+            // paste field through the UI is too flaky to build a capture
+            // session on. Goes through `pair(withRawPayload:)`, so it exercises
+            // the real parse, the real pin check and the real handoff of the
+            // watch's code, not a shortcut around them.
+            if let link = LaunchArgs.value("-autoRelayLink") {
+                await pair(withRawPayload: link)
+                return
+            }
+            // The older direct-to-Cloud dev-harness path (D12.2's own note:
             // "The dev harness... remains untouched for free/local use").
-            guard !busy, let u = LaunchArgs.value("-autoPairURL"), let c = LaunchArgs.value("-autoPairCode") else { return }
+            guard let u = LaunchArgs.value("-autoPairURL"), let c = LaunchArgs.value("-autoPairCode") else { return }
             await autoPair(url: u, code: c)
+            #endif
         }
     }
 
@@ -156,6 +172,23 @@ struct ConnectView: View {
         do {
             let (session, key) = try await RelayPairingService.pair(intent: intent, deviceName: UIDevice.current.name)
             SessionStore.save(session, key: key)
+            // One scan admits both surfaces: hand the watch the second code
+            // from the same QR (D12 W4). Deliberately after the phone's own
+            // pairing succeeded, so a failed scan never spends the watch's
+            // code, and deliberately fire-and-forget, since an operator with
+            // no Apple Watch has still paired perfectly well.
+            if let watchIntent = intent.watchIntent {
+                let queued = WatchLink.shared.sendPairing(
+                    watchIntent, expiresUnix: intent.expiresUnix)
+                if !queued {
+                    // Not an error: the phone is paired and fully usable. It
+                    // means there is no watch to hand the second code to, or
+                    // the link is not up yet. Surfacing this in the UI needs a
+                    // post-pair notice screen, which does not exist yet; until
+                    // it does, do not pretend the wrist is coming.
+                    print("WatchLink: no watch to hand the pairing code to; wrist stays unpaired")
+                }
+            }
             onPaired(Account(session: session, key: key))
         } catch {
             self.error = error.localizedDescription

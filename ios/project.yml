@@ -25,6 +25,11 @@ targets:
       - path: Shared
     dependencies:
       - target: TokenFuseWidget
+      # The watch app ships inside the phone app (D12 W4). It still runs on
+      # its own once paired: embedding is how it is distributed and how
+      # WatchConnectivity gets a counterpart, not a requirement that the phone
+      # be nearby at runtime.
+      - target: TokenFuseWatch
     info:
       path: Sources/Info.plist
       properties:
@@ -39,6 +44,28 @@ targets:
         # production planes use HTTPS. Not arbitrary loads.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+          # The relay is reached at whatever address the customer's own box
+          # has, over a SELF-SIGNED certificate, and the app trusts it by SPKI
+          # pin delivered in the QR the operator scanned off their desktop.
+          # ATS cannot express that: it demands a CA-anchored chain and a
+          # matching hostname, and it refuses the connection BEFORE the
+          # pinning delegate's decision can take effect (observed: the pin
+          # matched, then CFNetwork failed the task 2ms later with -9802).
+          # An NSExceptionDomains entry is impossible because the host is not
+          # known until the customer installs. What replaces ATS here is
+          # stricter than ATS: PinnedTLS.swift accepts exactly ONE certificate
+          # in the world, the one whose public key matches the pin, and hard
+          # aborts on anything else.
+          NSAllowsArbitraryLoads: true
+          # DIAGNOSTIC (campaign box only, not a shipping value): a host-scoped
+          # exception is the one thing that flips ATS's own TRUST check off
+          # (`skip_ats_trust`). NSAllowsArbitraryLoads alone only relaxed the
+          # cipher/version requirements, which the log confirmed:
+          # `enforce_ats(false) ... skip_ats_trust(false)`.
+          NSExceptionDomains:
+            5.75.234.176:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: false
         # Relay QR pairing scans a barcode with VisionKit's DataScannerViewController
         # (docs/PHASE5.md W3) — required or the app crashes on first camera access.
         NSCameraUsageDescription: "TokenFuse Pocket uses the camera to scan the pairing QR code shown on your Genaryx desktop."
@@ -91,23 +118,59 @@ targets:
       - path: Sources/APIClient.swift
       - path: Sources/DesignSystem.swift
       - path: Sources/Fuse.swift
-      - path: Sources/RunsStore.swift
-      - path: Sources/CachedRun.swift
+      # RunsStore + CachedRun are deliberately NOT here. They are the phone's
+      # whole-fleet store (SwiftData cache over /v1/runs + /v1/budgets), and
+      # the wrist reads only the relay's exception slice now, so pulling them
+      # in would put a fleet browser back inside the watch binary. They remain
+      # in the TokenFuse target via its `- path: Sources` directory entry.
       - path: Sources/LaunchArgs.swift
       - path: Sources/Crypto.swift
       - path: Sources/Keychain.swift
       - path: Sources/Session.swift
+      # The kill ceremony's wrist-confirmation step (WatchRunKillView) is a
+      # second Biometrics entry point alongside the phone's Face ID / passcode
+      # gate; both live in this one file (extended, not duplicated).
+      - path: Sources/Biometrics.swift
+      # The relay client. Without these three the target did not even compile:
+      # Session.swift references PinnedURLSessionDelegate and APIClient.swift
+      # declares exceptions() -> ExceptionSnapshot, both of which lived only in
+      # the phone's source list.
+      - path: Sources/RelayModels.swift
+      - path: Sources/RelayPairing.swift
+      - path: Sources/PinnedTLS.swift
+      # The pairing handoff from the phone (D12 W4).
+      - path: Sources/WatchLink.swift
+      # The wrist's exception store. It lives in Sources/ rather than
+      # WatchApp/ for one reason: the iOS test bundle can only reach
+      # types that TokenFuse compiles, and this class carries the
+      # revocation rule (a 401 is not a network blip) that must never
+      # regress untested.
+      - path: Sources/WatchExceptionsStore.swift
     dependencies:
       - target: TokenFuseWatchComplication
     info:
       path: WatchApp/Info.plist
       properties:
         WKApplication: true
-        # Standalone for now — no iPhone companion until W4 wires WatchConnectivity.
-        WKWatchOnly: true
+        # An iPhone companion since W4: the phone forwards the watch its own
+        # pairing code over WatchConnectivity, because the watch has no camera
+        # to scan the desktop QR with and watchOS has no CoreImage to render
+        # one back. The app still runs independently once paired, it holds its
+        # own token and its own signing key.
+        WKCompanionAppBundleIdentifier: com.taipanbox.tokenfuse
         CFBundleDisplayName: TokenFuse
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+          # Same reason as the phone: the watch is a relay client too, and
+          # reaches the same self-signed, pin-trusted relay.
+          NSAllowsArbitraryLoads: true
+          # And the same host-scoped exception, for the same reason: only this
+          # turns off ATS's own TRUST check. Without it the watch reproduces the
+          # phone's failure exactly, pin matched then -9802.
+          NSExceptionDomains:
+            5.75.234.176:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taipanbox.tokenfuse.watch
