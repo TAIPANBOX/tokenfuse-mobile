@@ -178,37 +178,6 @@ final class IncidentsStore {
     }
 }
 
-/// Human label + SF Symbol for a detector `kind`. Unknown kinds still render —
-/// the raw snake_case string, humanized, with a generic glyph.
-enum IncidentKind {
-    struct Presentation {
-        let label: String
-        let symbol: String
-    }
-
-    static func describe(_ kind: String) -> Presentation {
-        switch kind {
-        case "budget_exhausted":
-            return Presentation(label: "Budget exhausted", symbol: "fuelpump.slash")
-        case "sustained_loop":
-            return Presentation(label: "Sustained loop", symbol: "arrow.triangle.2.circlepath")
-        case "spend_spike":
-            return Presentation(label: "Spend spike", symbol: "chart.line.uptrend.xyaxis")
-        case "fanout_explosion":
-            return Presentation(label: "Fan-out explosion", symbol: "arrow.triangle.branch")
-        default:
-            return Presentation(label: humanize(kind), symbol: "exclamationmark.triangle")
-        }
-    }
-
-    private static func humanize(_ raw: String) -> String {
-        guard !raw.isEmpty else { return "Unknown" }
-        let words = raw.split(separator: "_").map(String.init)
-        guard let first = words.first else { return raw }
-        return ([first.capitalized] + words.dropFirst()).joined(separator: " ")
-    }
-}
-
 /// Severity → accent color, tolerant of unknown values.
 enum IncidentSeverity {
     static func accent(_ severity: String) -> Color {

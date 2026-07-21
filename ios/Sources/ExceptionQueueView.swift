@@ -37,6 +37,7 @@ struct ExceptionQueueView: View {
                         heroCard(aggregates)
                     }
                     queueSection
+                    digestSection
                 }
                 .padding(18)
             }
@@ -211,6 +212,58 @@ struct ExceptionQueueView: View {
                     onAcknowledge: { ackTarget = item }
                 )
             }
+            if store.queueTruncated > 0 {
+                truncationNotice
+            }
+        }
+    }
+
+    /// Only ever shown when the relay had to cut the actionable list, which is
+    /// not a normal case. Saying nothing here would mean the screen quietly
+    /// claims to be the whole picture when it is not.
+    private var truncationNotice: some View {
+        Text("\(store.queueTruncated) more need attention than fit here. Open Genaryx to see them all.")
+            .font(.mono).foregroundStyle(Palette.ember)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Palette.ember.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// What the guardrails already stopped, counted rather than listed.
+    ///
+    /// This is deliberately below the actionable queue and visually quieter:
+    /// nothing here needs the operator to do anything, the breaker already
+    /// fired. It exists because "171 runs of this agent hit their ceiling" is
+    /// the sentence that shows governance working at scale, and listing those
+    /// 171 individually would bury the handful of runs that DO need a decision.
+    @ViewBuilder private var digestSection: some View {
+        if !store.digest.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("ALREADY STOPPED")
+                    .font(.system(size: 10, weight: .semibold)).tracking(1.6)
+                    .foregroundStyle(Palette.faint)
+                ForEach(store.digest) { row in
+                    HStack(spacing: 10) {
+                        Image(systemName: row.presentation.symbol)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Palette.mint)
+                            .frame(width: 18)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(row.agentShortName ?? row.presentation.label)
+                                .font(.system(size: 14, weight: .medium))
+                            Text("\(row.count) \(row.count == 1 ? "run" : "runs") · \(row.presentation.label.lowercased())")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(Palette.faint)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 6)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Palette.mint.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -256,6 +309,11 @@ final class ExceptionQueueStore {
     private(set) var phase: Phase = .idle
     private(set) var aggregates: ExceptionAggregates?
     private(set) var queue: [ExceptionItem] = []
+    /// Already-contained events, counted by (kind, agent). Never empty-checked
+    /// by the view for correctness, only for whether to draw the section.
+    private(set) var digest: [ExceptionDigestRow] = []
+    /// Nonzero only when the relay had to cut the actionable list.
+    private(set) var queueTruncated: Int = 0
     /// Set when the relay rejects our device token (HTTP 401): the device was
     /// disconnected/revoked server-side - the desktop's Disconnect button
     /// (`admin::disconnect`), or another phone re-pairing into the single
@@ -271,6 +329,8 @@ final class ExceptionQueueStore {
             let snapshot = try await client.exceptions()
             aggregates = snapshot.aggregates
             queue = snapshot.queue
+            digest = snapshot.digest
+            queueTruncated = snapshot.queueTruncated
             phase = .loaded
         } catch APIClient.ClientError.http(401) {
             deauthorized = true

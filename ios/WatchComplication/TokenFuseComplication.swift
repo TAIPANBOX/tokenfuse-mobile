@@ -8,6 +8,10 @@ struct FaceEntry: TimelineEntry {
     let date: Date
     let rate: Double
     let overCap: Bool
+    /// False once the relay has revoked this watch. The figures below are then
+    /// the last ones it was entitled to read, and must not be presented as the
+    /// fleet's current state on a surface glanced at without thought.
+    var connected: Bool = true
 }
 
 struct FaceProvider: TimelineProvider {
@@ -17,12 +21,14 @@ struct FaceProvider: TimelineProvider {
 
     func getSnapshot(in context: Context, completion: @escaping (FaceEntry) -> Void) {
         let snapshot = FaceStore.load()
-        completion(FaceEntry(date: Date(), rate: snapshot.rate, overCap: snapshot.overCap))
+        completion(FaceEntry(date: Date(), rate: snapshot.rate,
+                             overCap: snapshot.overCap, connected: snapshot.connected))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<FaceEntry>) -> Void) {
         let snapshot = FaceStore.load()
-        let entry = FaceEntry(date: Date(), rate: snapshot.rate, overCap: snapshot.overCap)
+        let entry = FaceEntry(date: Date(), rate: snapshot.rate,
+                              overCap: snapshot.overCap, connected: snapshot.connected)
         // The app reloads this on every refresh; the schedule is a fallback.
         completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900))))
     }
@@ -32,9 +38,20 @@ struct FaceView: View {
     @Environment(\.widgetFamily) private var family
     let entry: FaceEntry
 
-    private var tint: Color { entry.overCap ? Palette.ember : Palette.amber }
-    private var rate2: String { String(format: "%.2f", entry.rate) }
-    private var rate1: String { String(format: "%.1f", entry.rate) }
+    private var tint: Color {
+        guard entry.connected else { return Palette.faint }
+        return entry.overCap ? Palette.ember : Palette.amber
+    }
+    /// A disconnected watch shows a dash, never a number. The figure it last
+    /// read is not the fleet's current state and a glance cannot tell the
+    /// difference, so there is nothing honest to put here.
+    private var rate2: String {
+        entry.connected ? String(format: "%.2f", entry.rate) : "--"
+    }
+    private var rate1: String {
+        entry.connected ? String(format: "%.1f", entry.rate) : "--"
+    }
+    private var symbol: String { entry.connected ? "bolt.fill" : "bolt.slash.fill" }
 
     var body: some View {
         switch family {
@@ -42,7 +59,7 @@ struct FaceView: View {
             ZStack {
                 AccessoryWidgetBackground()
                 VStack(spacing: -1) {
-                    Image(systemName: "bolt.fill").font(.system(size: 12)).foregroundStyle(tint)
+                    Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(tint)
                     Text(rate1).font(.system(size: 16, weight: .heavy)).monospacedDigit()
                         .minimumScaleFactor(0.6)
                 }
@@ -52,10 +69,10 @@ struct FaceView: View {
                 .foregroundStyle(tint)
                 .widgetLabel("\(rate2) $/m")
         case .accessoryInline:
-            Label("\(rate2) $/m", systemImage: "bolt.fill")
+            Label(entry.connected ? "\(rate2) $/m" : "disconnected", systemImage: symbol)
         case .accessoryRectangular:
             HStack(spacing: 8) {
-                Image(systemName: "bolt.fill").font(.system(size: 20)).foregroundStyle(tint)
+                Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(tint)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("FLEET BURN").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 2) {

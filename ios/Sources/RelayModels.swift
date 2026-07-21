@@ -161,7 +161,57 @@ struct ExceptionAggregates: Codable, Sendable, Hashable {
 /// (`exceptions.rs::ExceptionSnapshot`) - the phone's ENTIRE view of the
 /// fleet when paired through the relay (docs/PHASE5.md W3: "Never call
 /// /v1/runs").
+/// One rolled-up line of "this already happened, and the guardrail held".
+///
+/// The relay splits its output in two: `queue` is what you can still act on (a
+/// run with a known budget position, killable), and `digest` is what has
+/// already been contained. A `budget_exhausted` incident means the breaker
+/// tripped and the spending stopped, so 171 of them are one sentence with a
+/// number, not 171 rows. Grouped by (kind, agent) so the line reads as
+/// "reconciliation-batch: 171 runs hit their ceiling" rather than a bare count.
+struct ExceptionDigestRow: Codable, Sendable, Hashable, Identifiable {
+    let kind: String
+    let agentId: String?
+    let count: Int
+    let severity: String?
+    let lastSeenUnix: Int64
+
+    var id: String { "\(kind)|\(agentId ?? "")" }
+
+    /// The trailing segment of the agent URI, which is the part a human reads.
+    /// `agent://meridian.example/treasury/reconciliation-batch` becomes
+    /// `reconciliation-batch`.
+    var agentShortName: String? {
+        guard let agentId, let last = agentId.split(separator: "/").last else { return nil }
+        return String(last)
+    }
+
+    /// The same humanised label and glyph the Incidents list uses, so one
+    /// event never has two names in one app.
+    var presentation: IncidentKind.Presentation { IncidentKind.describe(kind) }
+}
+
 struct ExceptionSnapshot: Codable, Sendable, Hashable {
     let aggregates: ExceptionAggregates
     let queue: [ExceptionItem]
+    /// Already-contained events, counted by (kind, agent). Defaulted so an
+    /// older relay that does not send it still decodes.
+    let digest: [ExceptionDigestRow]
+    /// How many actionable items did not fit in `queue`. Zero in every normal
+    /// case; nonzero means the operator is being shown less than there is and
+    /// has to be told, because a governance surface must never truncate in
+    /// silence.
+    let queueTruncated: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case aggregates, queue, digest, queueTruncated
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        aggregates = try c.decode(ExceptionAggregates.self, forKey: .aggregates)
+        queue = try c.decode([ExceptionItem].self, forKey: .queue)
+        digest = try c.decodeIfPresent([ExceptionDigestRow].self, forKey: .digest) ?? []
+        queueTruncated = try c.decodeIfPresent(Int.self, forKey: .queueTruncated) ?? 0
+    }
 }
