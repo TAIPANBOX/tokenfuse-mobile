@@ -33,20 +33,28 @@ final class PathEncodingTests: XCTestCase {
         XCTAssertEqual("weird%2Fid".asPathSegment, "weird%252Fid")
     }
 
-    /// The invariant the fix rests on: the string that is SIGNED (the path) is
-    /// byte-for-byte the raw path the URL carries, which is what the server
-    /// reads via `uri.path()`. This mirrors how `Account.signedRequest` builds
-    /// the URL (via `percentEncodedPath`, never `URL.appending(path:)`).
-    func testSignedPathEqualsTheRawUrlPath() {
-        let base = URL(string: "https://5.75.234.176:8443")!
-        for id in ["r1", "a/b#c d", "інцидент-42", "weird%2Fid"] {
-            let path = "/v1/incidents/\(id.asPathSegment)/ack"
-            var comps = URLComponents(url: base, resolvingAgainstBaseURL: false)!
-            comps.percentEncodedPath += path
-            let urlRawPath = URLComponents(url: comps.url!, resolvingAgainstBaseURL: false)!
-                .percentEncodedPath
-            XCTAssertEqual(urlRawPath, path,
-                           "the signed path and the URL's raw path must match for id \(id)")
+    /// The invariant the fix rests on, checked against the REAL assembly
+    /// (`Account.mutationURL`), not a re-implementation: the string that is
+    /// SIGNED (the path) is byte-for-byte the raw path the URL carries, which
+    /// is what the Cloud reads via `uri.path()`. Includes a base URL with a
+    /// trailing slash: a hand-typed pairing URL must not desync the path (were
+    /// this reverted to `appending`/`+=`, the trailing-slash case would fail).
+    func testSignedPathEqualsTheRawUrlPath() throws {
+        let bases = [
+            "https://5.75.234.176:8443",
+            "https://5.75.234.176:8443/",
+            "http://localhost:8080",
+        ]
+        for baseString in bases {
+            let base = URL(string: baseString)!
+            for id in ["r1", "a/b#c d", "інцидент-42", "weird%2Fid"] {
+                let path = "/v1/incidents/\(id.asPathSegment)/ack"
+                let url = try Account.mutationURL(base: base, encodedPath: path)
+                let urlRawPath = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+                    .percentEncodedPath
+                XCTAssertEqual(urlRawPath, path,
+                               "signed path must equal the URL's raw path (base \(baseString), id \(id))")
+            }
         }
     }
 }

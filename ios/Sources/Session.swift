@@ -166,18 +166,7 @@ final class Account {
         let canonical = Canonical.string(method: method, path: path, body: body, ts: ts, nonce: nonce)
         let signature = try key.sign(Data(canonical.utf8)).base64EncodedString()
 
-        // `path` is already percent-encoded (callers encode dynamic segments
-        // with `asPathSegment`), and the Cloud verifies the signature over
-        // `uri.path()` -- the raw, encoded request path (tokenfuse http.rs). So
-        // the URL must carry EXACTLY these bytes: assemble it via
-        // `percentEncodedPath`, never `URL.appending(path:)`, which would
-        // percent-encode a second time and desync the signature from the URL.
-        guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
-            throw APIClient.ClientError.badURL
-        }
-        components.percentEncodedPath += path
-        guard let url = components.url else { throw APIClient.ClientError.badURL }
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: try Self.mutationURL(base: base, encodedPath: path))
         request.httpMethod = method
         if !body.isEmpty {
             request.httpBody = body
@@ -189,6 +178,24 @@ final class Account {
         request.setValue(nonce, forHTTPHeaderField: "X-Fuse-Nonce")
         request.setValue(signature, forHTTPHeaderField: "X-Fuse-Sig")
         return request
+    }
+
+    /// Assemble the mutation URL from an ALREADY-percent-encoded absolute
+    /// `path`. The URL's path is SET to exactly `path` (not appended), so it
+    /// equals the string that was signed, which equals what the Cloud reads via
+    /// `uri.path()`. Setting rather than appending is deliberate: a base URL
+    /// with a trailing slash or a stray path (e.g. a hand-typed pairing URL
+    /// like `http://host:8787/`) would otherwise desync the wire path from the
+    /// signature (`//v1/...` -> a 404, not even a signature error). And never
+    /// `URL.appending(path:)`, which would percent-encode `path` a second time.
+    /// Internal, so `PathEncodingTests` exercises the real assembly.
+    static func mutationURL(base: URL, encodedPath path: String) throws -> URL {
+        guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+            throw APIClient.ClientError.badURL
+        }
+        components.percentEncodedPath = path
+        guard let url = components.url else { throw APIClient.ClientError.badURL }
+        return url
     }
 
     private func send(_ request: URLRequest) async throws {
@@ -208,8 +215,9 @@ extension String {
     /// path -- so the client must SIGN and SEND exactly these bytes; encoding
     /// the id once here and reusing that same path for both keeps them in sync.
     var asPathSegment: String {
-        // `urlPathAllowed` permits `/` (a segment separator) and, on some
-        // platforms, `%`; a single segment must encode both.
+        // `urlPathAllowed` permits `/` (a segment separator), which a single
+        // segment must encode. `%` is never in the set (removing it is
+        // belt-and-braces, keep it so `a%b` -> `a%25b` can never regress).
         var allowed = CharacterSet.urlPathAllowed
         allowed.remove(charactersIn: "/%")
         return addingPercentEncoding(withAllowedCharacters: allowed) ?? self
