@@ -98,6 +98,26 @@ struct ExceptionItem: Codable, Identifiable, Sendable, Hashable {
     var id: String { key }
     var spent: Double { spentMicrousd.usd }
     var budget: Double? { budgetMicros.map { $0.usd } }
+
+    /// The two reasons a row can be here, and a row can be here for both.
+    ///
+    /// Money says how much: this run has a known budget position. Behaviour
+    /// says whether it can still be trusted: something detected it doing
+    /// something, which is a different emergency. An agent at 116% of budget
+    /// doing exactly its job is a conversation for the morning; one at 40% that
+    /// just picked up an unsanctioned tool is an incident now. The queue used
+    /// to blend the two into one ordered list and say nothing about which was
+    /// which.
+    var isMoneyAxis: Bool { fraction != nil }
+
+    /// `"budget"` and `"kill"` are the relay's own bookkeeping kinds for a
+    /// budget position and a kill event; anything else is a detection, which
+    /// is what makes this a behaviour row.
+    var isBehaviourAxis: Bool { kind != "budget" && kind != "kill" }
+
+    /// Percentage of the cap, for the money chip. Nil when this row states no
+    /// budget position at all.
+    var percentOfCap: Int? { fraction.map { Int(($0 * 100).rounded()) } }
 }
 
 /// C3's Felyx annotation on a queue item (docs/PHASE6-C3.md C3-W1,

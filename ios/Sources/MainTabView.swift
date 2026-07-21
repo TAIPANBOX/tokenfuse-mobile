@@ -35,7 +35,7 @@ struct MainTabView: View {
                 .tabItem { Label("Money", systemImage: "dollarsign.circle") }
                 .tag(Tab.money)
 
-            AgentsRelayView(account: account)
+            AgentsRelayView(account: account, onUnpair: onUnpair)
                 .tabItem { Label("Agents", systemImage: "person.2") }
                 .tag(Tab.agents)
         }
@@ -54,7 +54,7 @@ struct MainTabView: View {
 
 /// Hosts Savings + Agents behind a segmented control, in the same house style
 /// `GovernanceView` uses for Evidence/Audit. Each screen keeps its own
-/// scroll/refresh/toolbar behavior — the segmented control just swaps which
+/// scroll/refresh/toolbar behavior: the segmented control just swaps which
 /// one is mounted.
 struct FinOpsView: View {
     let account: Account

@@ -13,6 +13,7 @@ struct ExceptionQueueView: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var store = ExceptionQueueStore()
+    @State private var axis: QueueAxis = .all
     @State private var killTarget: ExceptionItem?
     @State private var ackTarget: ExceptionItem?
     @State private var actionError: String?
@@ -203,9 +204,36 @@ struct ExceptionQueueView: View {
         }
     }
 
+    /// The queue keeps ONE order, decided by the relay, because the phone and
+    /// the watch drifted apart the last time each sorted for itself. This
+    /// filters that one order, it never re-sorts it.
+    private var visibleQueue: [ExceptionItem] {
+        switch axis {
+        case .all: return store.queue
+        case .money: return store.queue.filter(\.isMoneyAxis)
+        case .behaviour: return store.queue.filter(\.isBehaviourAxis)
+        }
+    }
+
+    private var axisPicker: some View {
+        Picker("Show", selection: $axis) {
+            ForEach(QueueAxis.allCases) { a in Text(a.label).tag(a) }
+        }
+        .pickerStyle(.segmented)
+        .padding(.bottom, 4)
+    }
+
     private var queueList: some View {
         VStack(spacing: 10) {
-            ForEach(store.queue) { item in
+            if store.queue.contains(where: \.isBehaviourAxis) || store.queue.contains(where: \.isMoneyAxis) {
+                axisPicker
+            }
+            if visibleQueue.isEmpty, !store.queue.isEmpty {
+                Text("Nothing on this axis right now.")
+                    .font(.mono).foregroundStyle(Palette.faint)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 18)
+            }
+            ForEach(visibleQueue) { item in
                 ExceptionRow(
                     item: item,
                     onKill: { killTarget = item },
@@ -376,6 +404,8 @@ struct ExceptionRow: View {
                 classPill
             }
 
+            axisChips
+
             if let fraction = item.fraction, let budget = item.budget {
                 Fuse(fraction: fraction)
                 HStack {
@@ -436,6 +466,34 @@ struct ExceptionRow: View {
                     .overlay(Capsule().stroke(Palette.iris.opacity(0.35)))
             }
         }
+    }
+
+    /// Both axes, side by side, so a row says why it is here rather than
+    /// leaving the reader to infer it from the headline. A row that is here for
+    /// both shows both.
+    @ViewBuilder private var axisChips: some View {
+        HStack(spacing: 6) {
+            if let percent = item.percentOfCap {
+                chip(text: "\(percent)% of cap", color: item.class.accent, symbol: "gauge.with.needle")
+            }
+            if item.isBehaviourAxis {
+                let presentation = IncidentKind.describe(item.kind)
+                let severity = item.severity.map { " \u{00B7} \($0)" } ?? ""
+                chip(text: presentation.label + severity, color: Palette.iris, symbol: presentation.symbol)
+            }
+        }
+    }
+
+    private func chip(text: String, color: Color, symbol: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol).font(.system(size: 8, weight: .semibold))
+            Text(text.uppercased())
+                .font(.system(size: 9, weight: .semibold)).tracking(0.5)
+        }
+        .foregroundStyle(item.killed ? Palette.faint : color)
+        .padding(.horizontal, 7).padding(.vertical, 3)
+        .background((item.killed ? Palette.faint : color).opacity(0.09), in: Capsule())
+        .overlay(Capsule().stroke((item.killed ? Palette.faint : color).opacity(0.3)))
     }
 
     private var classPill: some View {
@@ -506,5 +564,23 @@ struct ExceptionRow: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+/// Which axis of the queue to look at. Not two separate queues: two separate
+/// queues would mean two separate orders, and the relay owns the order for a
+/// reason (`exceptions.rs::queue_order`: the phone and the watch once sorted a
+/// fleet two different ways on two surfaces of the same product).
+enum QueueAxis: String, CaseIterable, Identifiable, Hashable {
+    case all, money, behaviour
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: return "All"
+        case .money: return "Money"
+        case .behaviour: return "Behaviour"
+        }
     }
 }
