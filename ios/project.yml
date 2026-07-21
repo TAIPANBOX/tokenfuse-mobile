@@ -57,15 +57,27 @@ targets:
           # in the world, the one whose public key matches the pin, and hard
           # aborts on anything else.
           NSAllowsArbitraryLoads: true
-          # DIAGNOSTIC (campaign box only, not a shipping value): a host-scoped
-          # exception is the one thing that flips ATS's own TRUST check off
-          # (`skip_ats_trust`). NSAllowsArbitraryLoads alone only relaxed the
-          # cipher/version requirements, which the log confirmed:
-          # `enforce_ats(false) ... skip_ats_trust(false)`.
-          NSExceptionDomains:
-            5.75.234.176:
-              NSExceptionAllowsInsecureHTTPLoads: true
-              NSIncludesSubdomains: false
+          # No NSExceptionDomains entry ships, deliberately. One lived here
+          # during the 2026-07-20 campaign, naming that box's address; it was
+          # removed on 2026-07-21 when the box was destroyed. An exception
+          # scoped to an address nobody owns any more grants this app nothing,
+          # and would switch ATS's trust check off for whoever is assigned that
+          # address next.
+          #
+          # The finding it came from is worth keeping, because it cost a live
+          # session to learn: against a relay serving a SELF-SIGNED certificate,
+          # pinning alone does not get the connection open.
+          # NSAllowsArbitraryLoads only relaxes the cipher/version requirements
+          # - the log said `enforce_ats(false) ... skip_ats_trust(false)` - and
+          # CFNetwork still failed the task with -9802 AFTER the pin had already
+          # matched. Only a host-scoped NSExceptionDomains entry turns ATS's own
+          # trust check off.
+          #
+          # So if a future live batch points this app at a self-signed relay,
+          # expect -9802, and add an exception for THAT batch's host as a
+          # temporary diagnostic - never merged. The real fix is the cert broker
+          # (genaryx task #14): once a relay serves a publicly-trusted
+          # certificate there is nothing left for an exception to do.
         # Relay QR pairing scans a barcode with VisionKit's DataScannerViewController
         # (docs/PHASE5.md W3) — required or the app crashes on first camera access.
         NSCameraUsageDescription: "TokenFuse Pocket uses the camera to scan the pairing QR code shown on your Genaryx desktop."
@@ -164,13 +176,11 @@ targets:
           # Same reason as the phone: the watch is a relay client too, and
           # reaches the same self-signed, pin-trusted relay.
           NSAllowsArbitraryLoads: true
-          # And the same host-scoped exception, for the same reason: only this
-          # turns off ATS's own TRUST check. Without it the watch reproduces the
-          # phone's failure exactly, pin matched then -9802.
-          NSExceptionDomains:
-            5.75.234.176:
-              NSExceptionAllowsInsecureHTTPLoads: true
-              NSIncludesSubdomains: false
+          # And no NSExceptionDomains entry here either, for the same reason
+          # and with the same history as the phone above - see that comment for
+          # the -9802 finding and what to do if a self-signed relay has to be
+          # reached again. Without an exception the watch reproduces the phone's
+          # failure exactly: pin matched, then -9802.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taipanbox.tokenfuse.watch
