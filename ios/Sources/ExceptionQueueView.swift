@@ -13,11 +13,22 @@ struct ExceptionQueueView: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var store = ExceptionQueueStore()
-    @State private var axis: QueueAxis = .all
+    @State private var axis: QueueAxis = Self.launchAxis ?? .all
     @State private var killTarget: ExceptionItem?
     @State private var ackTarget: ExceptionItem?
     @State private var actionError: String?
     @State private var showSettings = false
+
+    /// Screenshot / UI-check hook, DEBUG builds only, the same shape as
+    /// `MainTabView.launchTab`: names one of the filter chips a person could
+    /// tap, and nothing a person could not.
+    private static var launchAxis: QueueAxis? {
+        #if DEBUG
+        return LaunchArgs.value("-openAxis").flatMap(QueueAxis.init(rawValue:))
+        #else
+        return nil
+        #endif
+    }
 
     /// Short poll interval (docs/PHASE5.md: "POLL on a short interval + on
     /// foreground, no APNs in sim") - the relay's own SSE-driven engine
@@ -406,6 +417,13 @@ struct ExceptionRow: View {
 
             axisChips
 
+            if let summary = item.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Palette.dim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if let fraction = item.fraction, let budget = item.budget {
                 Fuse(fraction: fraction)
                 HStack {
@@ -480,6 +498,12 @@ struct ExceptionRow: View {
                 let presentation = IncidentKind.describe(item.kind)
                 let severity = item.severity.map { " \u{00B7} \($0)" } ?? ""
                 chip(text: presentation.label + severity, color: Palette.iris, symbol: presentation.symbol)
+            }
+            // Provenance, only when there is something to say. A row with no
+            // source was measured here; saying "by tokenfuse" on every other
+            // row would turn the one that matters into noise.
+            if let source = item.source, !source.isEmpty {
+                chip(text: "via \(source)", color: Palette.faint, symbol: "arrow.triangle.branch")
             }
         }
     }

@@ -76,6 +76,15 @@ struct ExceptionItem: Codable, Identifiable, Sendable, Hashable {
     let kind: String
     let `class`: ExceptionClass
     let severity: String?
+    /// Who detected this, when the money plane did not. Absent for everything
+    /// TokenFuse measured itself, which is most of the queue. Shown on the row
+    /// on purpose: an operator about to kill a run is entitled to know whether
+    /// the plane measured this or was told it by another service.
+    let source: String?
+    /// The reporting detector's own sentence. Our own thresholds need none,
+    /// their kind says everything; a shadow-tool or exfiltration finding is
+    /// unreadable without it.
+    let summary: String?
     let headline: String
     let spentMicrousd: Int64
     let budgetMicros: Int64?
