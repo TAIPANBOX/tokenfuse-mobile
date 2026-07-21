@@ -19,6 +19,24 @@ struct MainTabView: View {
 
     @State private var selection: Tab = .exceptions
 
+    /// Screenshot / UI-check hook, DEBUG builds only, alongside the existing
+    /// `-autoRelayLink` and `-openRun`: the Simulator has no way to tap a tab
+    /// from the command line, so a capture session cannot reach Money or Agents
+    /// without one. Names a tab, nothing more, and cannot reach anything a user
+    /// could not.
+    private static var launchTab: Tab? {
+        #if DEBUG
+        switch LaunchArgs.value("-openTab") {
+        case "money": return .money
+        case "agents": return .agents
+        case "exceptions": return .exceptions
+        default: return nil
+        }
+        #else
+        return nil
+        #endif
+    }
+
     enum Tab: Hashable {
         case exceptions, money, agents
     }
@@ -43,6 +61,9 @@ struct MainTabView: View {
         .toolbarBackground(Palette.ink, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarColorScheme(.dark, for: .tabBar)
+        .task {
+            if let tab = Self.launchTab { selection = tab }
+        }
         .onChange(of: Router.shared.openRun) { _, newValue in
             // A run was requested (a notification tap, or a launch arg): the
             // queue is the only screen that can open one, so bring it forward
