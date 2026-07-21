@@ -130,19 +130,19 @@ final class Account {
     }
 
     func kill(run: String) async throws {
-        let request = try signedRequest(method: "POST", path: "/v1/runs/\(run)/kill", body: Data())
+        let request = try signedRequest(method: "POST", path: "/v1/runs/\(run.asPathSegment)/kill", body: Data())
         try await send(request)
     }
 
     /// Acknowledge an incident (admin only).
     func ackIncident(id: String) async throws {
-        let request = try signedRequest(method: "POST", path: "/v1/incidents/\(id)/ack", body: Data())
+        let request = try signedRequest(method: "POST", path: "/v1/incidents/\(id.asPathSegment)/ack", body: Data())
         try await send(request)
     }
 
     func setBudget(run: String, usd: Double) async throws {
         let body = try JSONSerialization.data(withJSONObject: ["budget_usd": usd])
-        let request = try signedRequest(method: "POST", path: "/v1/runs/\(run)/budget", body: body)
+        let request = try signedRequest(method: "POST", path: "/v1/runs/\(run.asPathSegment)/budget", body: body)
         try await send(request)
     }
 
@@ -152,7 +152,7 @@ final class Account {
         let hex = token.map { String(format: "%02x", $0) }.joined()
         guard
             let body = try? JSONSerialization.data(withJSONObject: ["token": hex]),
-            let request = try? signedRequest(method: "POST", path: "/v1/devices/\(session.deviceId)/apns", body: body)
+            let request = try? signedRequest(method: "POST", path: "/v1/devices/\(session.deviceId.asPathSegment)/apns", body: body)
         else { return }
         try? await send(request)
     }
@@ -166,7 +166,18 @@ final class Account {
         let canonical = Canonical.string(method: method, path: path, body: body, ts: ts, nonce: nonce)
         let signature = try key.sign(Data(canonical.utf8)).base64EncodedString()
 
-        var request = URLRequest(url: base.appending(path: String(path.drop(while: { $0 == "/" }))))
+        // `path` is already percent-encoded (callers encode dynamic segments
+        // with `asPathSegment`), and the Cloud verifies the signature over
+        // `uri.path()` -- the raw, encoded request path (tokenfuse http.rs). So
+        // the URL must carry EXACTLY these bytes: assemble it via
+        // `percentEncodedPath`, never `URL.appending(path:)`, which would
+        // percent-encode a second time and desync the signature from the URL.
+        guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+            throw APIClient.ClientError.badURL
+        }
+        components.percentEncodedPath += path
+        guard let url = components.url else { throw APIClient.ClientError.badURL }
+        var request = URLRequest(url: url)
         request.httpMethod = method
         if !body.isEmpty {
             request.httpBody = body
@@ -184,5 +195,23 @@ final class Account {
         let (_, response) = try await transport.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIClient.ClientError.notHTTP }
         guard (200..<300).contains(http.statusCode) else { throw APIClient.ClientError.http(http.statusCode) }
+    }
+}
+
+extension String {
+    /// Percent-encode this string as a SINGLE URL path segment: `/`, spaces,
+    /// `?`, `#`, `%` and other reserved characters become data, not path
+    /// structure. Used for the dynamic ids in signed mutation paths (run id,
+    /// incident id, device id) so an id can be anything the server assigned
+    /// without breaking the URL or, worse, the ES256 signature. The Cloud
+    /// verifies the signature over `uri.path()` -- the raw, encoded request
+    /// path -- so the client must SIGN and SEND exactly these bytes; encoding
+    /// the id once here and reusing that same path for both keeps them in sync.
+    var asPathSegment: String {
+        // `urlPathAllowed` permits `/` (a segment separator) and, on some
+        // platforms, `%`; a single segment must encode both.
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/%")
+        return addingPercentEncoding(withAllowedCharacters: allowed) ?? self
     }
 }
