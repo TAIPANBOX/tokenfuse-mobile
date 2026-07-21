@@ -189,7 +189,15 @@ final class Account {
     /// signature (`//v1/...` -> a 404, not even a signature error). And never
     /// `URL.appending(path:)`, which would percent-encode `path` a second time.
     /// Internal, so `PathEncodingTests` exercises the real assembly.
-    static func mutationURL(base: URL, encodedPath path: String) throws -> URL {
+    ///
+    /// `nonisolated` because it genuinely is: it reads no instance state and no
+    /// actor state, it maps two values to a third. `Account` is `@MainActor` for
+    /// the session it holds, and inheriting that isolation here would be an
+    /// accident of where the function lives rather than anything about what it
+    /// does - it made a pure string-to-URL helper uncallable from a synchronous
+    /// test, and would equally have blocked any future off-main caller such as
+    /// the relay client.
+    nonisolated static func mutationURL(base: URL, encodedPath path: String) throws -> URL {
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             throw APIClient.ClientError.badURL
         }
