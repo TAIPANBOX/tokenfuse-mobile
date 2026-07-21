@@ -5,15 +5,19 @@ import UIKit
 /// + QR scanner"; itrat-console/13 D12.2 step 4): scan the QR the desktop's
 /// Pocket panel renders, or, since the Simulator has no camera, paste the
 /// same `genaryx-pocket://` link by hand (a DEBUG-only dev fallback).
-/// `-autoPairURL`/`-autoPairCode` keep working unchanged here too: that is a
-/// separate, direct-to-Cloud dev-harness path (no relay, no TLS pin), per
-/// D12.2's own note that the dev harness "remains untouched for free/local
-/// use".
+///
+/// There is one way in and it goes through a relay. The direct-to-Cloud
+/// harness path (`-autoPairURL`/`-autoPairCode`) and the manual "pair to a
+/// local plane" sheet are gone with the free mode (itrat-console/14 D14.6):
+/// both produced a session with no TLS pin, and a pinless session now has
+/// nothing to talk to, since every screen in the app reads the relay. What
+/// remains for the Simulator is `-autoRelayLink`, which takes the same
+/// `genaryx-pocket://` payload the QR carries and therefore exercises the real
+/// parse, the real pin check and the real handoff.
 struct ConnectView: View {
     var onPaired: (Account) -> Void
 
     @State private var showScanner = false
-    @State private var showManualPair = false
     @State private var pastedLink = ""
     @State private var busy = false
     @State private var error: String?
@@ -52,12 +56,6 @@ struct ConnectView: View {
         .fullScreenCover(isPresented: $showScanner) {
             ScannerSheet(onScan: handleScannedPayload, onCancel: { showScanner = false })
         }
-        .sheet(isPresented: $showManualPair) {
-            PairView { account in
-                showManualPair = false
-                onPaired(account)
-            }
-        }
         .task {
             // Screenshot / UI-check hooks, DEBUG builds only. Both accept an
             // attacker-chosen address, so neither belongs in a shipped binary;
@@ -75,10 +73,6 @@ struct ConnectView: View {
                 await pair(withRawPayload: link)
                 return
             }
-            // The older direct-to-Cloud dev-harness path (D12.2's own note:
-            // "The dev harness... remains untouched for free/local use").
-            guard let u = LaunchArgs.value("-autoPairURL"), let c = LaunchArgs.value("-autoPairCode") else { return }
-            await autoPair(url: u, code: c)
             #endif
         }
     }
@@ -134,10 +128,6 @@ struct ConnectView: View {
             }
             .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.iris)
             .disabled(busy || pastedLink.isEmpty)
-
-            Button("Pair manually to a local plane instead") { showManualPair = true }
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(Palette.dim)
-                .padding(.top, 6)
         }
     }
     #endif
@@ -189,18 +179,6 @@ struct ConnectView: View {
                     print("WatchLink: no watch to hand the pairing code to; wrist stays unpaired")
                 }
             }
-            onPaired(Account(session: session, key: key))
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    private func autoPair(url: String, code: String) async {
-        busy = true
-        defer { busy = false }
-        do {
-            let (session, key) = try await PairingService.pair(planeURL: url, code: code, deviceName: UIDevice.current.name)
-            SessionStore.save(session, key: key)
             onPaired(Account(session: session, key: key))
         } catch {
             self.error = error.localizedDescription

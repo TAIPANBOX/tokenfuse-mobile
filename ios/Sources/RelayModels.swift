@@ -63,6 +63,14 @@ struct ExceptionItem: Codable, Identifiable, Sendable, Hashable {
     let key: String
     let runId: String?
     let incidentId: String?
+    /// Which agent this row belongs to, when the relay could tell. It often
+    /// could not until recently: `/v1/alerts` states no agent at all, and
+    /// alerts are what most of the queue is rebuilt from, so the relay now
+    /// learns run-to-agent from `run_update` events and incidents and fills it
+    /// in (`exceptions.rs::attach_known_agents`). Still optional, because a run
+    /// whose agent was never seen anywhere has none, and because an older relay
+    /// omits the field entirely.
+    let agentId: String?
     /// `"budget"` | `"kill"` | an incident kind (`budget_exhausted` |
     /// `sustained_loop` | `spend_spike` | `fanout_explosion`).
     let kind: String
@@ -213,5 +221,113 @@ struct ExceptionSnapshot: Codable, Sendable, Hashable {
         queue = try c.decode([ExceptionItem].self, forKey: .queue)
         digest = try c.decodeIfPresent([ExceptionDigestRow].self, forKey: .digest) ?? []
         queueTruncated = try c.decodeIfPresent(Int.self, forKey: .queueTruncated) ?? 0
+    }
+}
+
+// MARK: - GET /relay/v1/money
+
+/// The FinOps totals the phone could not reach while the relay served one
+/// screen (`exceptions.rs::SavingsRollup`). Not a live read of `/v1/savings`:
+/// the relay pre-computes this the same way it pre-computes the queue.
+struct SavingsRollup: Codable, Sendable, Hashable {
+    let blockedSpendMicrousd: Int64
+    let cacheSavedMicrousd: Int64
+    let routerSavedMicrousd: Int64
+    let budgetBreaks: UInt64
+    let totalSavedMicrousd: Int64
+
+    var blockedSpend: Double { blockedSpendMicrousd.usd }
+    var cacheSaved: Double { cacheSavedMicrousd.usd }
+    var routerSaved: Double { routerSavedMicrousd.usd }
+    var totalSaved: Double { totalSavedMicrousd.usd }
+}
+
+/// One agent's roll-up (`exceptions.rs::AgentRollup`), carrying both axes at
+/// once: what it costs and how it is behaving.
+///
+/// `burnRateMicrousdPerMin` is the only figure here that is not a running
+/// total. Spend, calls and runs say "how much so far"; the burn rate says
+/// "right now", which is what decides whether an agent is stopped this minute
+/// or reviewed in the morning. The relay computes it as a rolling rate, the
+/// same way it already did fleet-wide.
+struct AgentRollup: Codable, Identifiable, Sendable, Hashable {
+    /// An EMPTY id is the deliberate "unattributed" bucket, the same convention
+    /// Cloud itself uses for calls that arrived without an agent tag. It is not
+    /// a decoding accident and should be shown, not hidden: unattributed spend
+    /// is still spend.
+    let agentId: String
+    let spentMicrousd: Int64
+    let calls: UInt64
+    let runs: UInt64
+    let burnRateMicrousdPerMin: Int64
+    let lastSeenUnix: Int64
+    /// How many rows in the live queue belong to this agent, killed ones
+    /// excluded. This is the behaviour axis arriving in the money screen: an
+    /// agent at 40% of budget with an open detection is a different emergency
+    /// from one at 116% behaving exactly as designed.
+    let openExceptions: Int
+    let worstSeverity: String?
+
+    var id: String { agentId }
+    var spent: Double { spentMicrousd.usd }
+    var burnRatePerMin: Double { Double(burnRateMicrousdPerMin) / 1_000_000 }
+    var isUnattributed: Bool { agentId.isEmpty }
+
+    /// The trailing segment of the agent URI, which is the part a human reads,
+    /// matching `ExceptionDigestRow.agentShortName` so one agent never has two
+    /// names in one app.
+    var shortName: String {
+        if agentId.isEmpty { return "Unattributed" }
+        guard let last = agentId.split(separator: "/").last else { return agentId }
+        return String(last)
+    }
+}
+
+/// One point of the fleet's burn history, one per relay reconcile
+/// (`exceptions.rs::BurnPoint`). Bounded by both a time window and a count on
+/// the relay side, so this array is short by construction.
+struct BurnPoint: Codable, Sendable, Hashable, Identifiable {
+    let tUnix: Int64
+    let microusdPerMin: Int64
+
+    var id: Int64 { tUnix }
+    var perMin: Double { Double(microusdPerMin) / 1_000_000 }
+}
+
+/// `GET /relay/v1/money`'s response body (`exceptions.rs::MoneySnapshot`): the
+/// second bounded, pre-computed relay surface, and the only way a paired phone
+/// sees the money and the per-agent picture.
+///
+/// It is not a doorway to `/v1/agents` or `/v1/runs`. The relay's read proxy
+/// still allowlists exactly one path for a reason, and everything here is
+/// capped: the agents list at 200, the burn series at 64 points. When the cap
+/// bites, `agentsTruncated` and `othersSpentMicrousd` say so out loud, so the
+/// shown spend plus the hidden spend always equals the fleet total and a cut
+/// list is never silent.
+struct MoneySnapshot: Codable, Sendable, Hashable {
+    let aggregates: ExceptionAggregates
+    let savings: SavingsRollup
+    let agents: [AgentRollup]
+    let agentsTruncated: Int
+    let othersSpentMicrousd: Int64
+    let burnSeries: [BurnPoint]
+
+    var othersSpent: Double { othersSpentMicrousd.usd }
+
+    private enum CodingKeys: String, CodingKey {
+        case aggregates, savings, agents, agentsTruncated, othersSpentMicrousd, burnSeries
+    }
+
+    /// Defaulted the same way `ExceptionSnapshot` defaults `digest`: a relay
+    /// older than a given field still decodes rather than failing the whole
+    /// screen over one absent key.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        aggregates = try c.decode(ExceptionAggregates.self, forKey: .aggregates)
+        savings = try c.decode(SavingsRollup.self, forKey: .savings)
+        agents = try c.decodeIfPresent([AgentRollup].self, forKey: .agents) ?? []
+        agentsTruncated = try c.decodeIfPresent(Int.self, forKey: .agentsTruncated) ?? 0
+        othersSpentMicrousd = try c.decodeIfPresent(Int64.self, forKey: .othersSpentMicrousd) ?? 0
+        burnSeries = try c.decodeIfPresent([BurnPoint].self, forKey: .burnSeries) ?? []
     }
 }

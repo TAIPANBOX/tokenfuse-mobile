@@ -110,4 +110,17 @@ struct APIClient: Sendable {
     /// relay is the only server that implements this path; reuses the same
     /// `get` helper (bearer auth, snake_case decode) as every other read.
     func exceptions() async throws -> ExceptionSnapshot { try await get("relay/v1/exceptions") }
+
+    /// The relay's second bounded, pre-computed read surface
+    /// (`GET /relay/v1/money`, `exceptions.rs::MoneySnapshot`): fleet totals,
+    /// the FinOps savings roll-up, a short burn series and the per-agent
+    /// roll-up, each agent carrying both what it costs and how it is behaving.
+    ///
+    /// It exists because the rule the relay defends is "never proxy a fleet
+    /// browse", not "hide the money": per-agent figures are bounded by the
+    /// number of agents, not the number of runs, so they can be served without
+    /// reopening the `/v1/runs` choke the relay was built to close. Like
+    /// `exceptions()`, meaningful only against a relay, and served from the
+    /// same bearer-auth, snake_case-decoding `get` helper as every other read.
+    func money() async throws -> MoneySnapshot { try await get("relay/v1/money") }
 }

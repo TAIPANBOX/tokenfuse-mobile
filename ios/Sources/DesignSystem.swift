@@ -131,3 +131,27 @@ extension Font {
     /// Data / ids / rates.
     static let mono = Font.system(.footnote, design: .monospaced)
 }
+
+/// One labelled figure in a row of them: SPENT, HEADROOM, and their like.
+///
+/// It lived in `RunDetailView` until that screen went with the free shell, and
+/// the exception queue was already borrowing it from there. Moved here rather
+/// than copied, so the two places that draw a figure keep drawing it the same
+/// way.
+struct StatTile: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .semibold)).tracking(1.2)
+                .foregroundStyle(Palette.faint)
+            Text(value).font(.instrument(20)).monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(hex: 0x0C1117), in: RoundedRectangle(cornerRadius: 13))
+        .overlay(RoundedRectangle(cornerRadius: 13).stroke(Palette.line))
+    }
+}
