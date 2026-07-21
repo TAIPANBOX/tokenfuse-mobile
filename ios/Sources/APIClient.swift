@@ -20,12 +20,17 @@ struct APIClient: Sendable {
         /// A 402 denial from the entitlements gate, decoded into its typed body
         /// so callers can key an upgrade CTA off `feature`/`upgradeUrl`.
         case planRequired(PlanRequiredError)
+        /// The request URL could not be assembled. Defensive: the base URL is
+        /// validated and the path is already percent-encoded, so this should be
+        /// unreachable.
+        case badURL
 
         var errorDescription: String? {
             switch self {
             case .http(let code): return "The plane returned HTTP \(code)."
             case .notHTTP: return "No response from the plane."
             case .planRequired(let error): return "\(error.feature) requires a plan upgrade for \(error.org)."
+            case .badURL: return "Could not build the request URL."
             }
         }
     }

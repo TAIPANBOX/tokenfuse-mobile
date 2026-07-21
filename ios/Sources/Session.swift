@@ -130,19 +130,19 @@ final class Account {
     }
 
     func kill(run: String) async throws {
-        let request = try signedRequest(method: "POST", path: "/v1/runs/\(run)/kill", body: Data())
+        let request = try signedRequest(method: "POST", path: "/v1/runs/\(run.asPathSegment)/kill", body: Data())
         try await send(request)
     }
 
     /// Acknowledge an incident (admin only).
     func ackIncident(id: String) async throws {
-        let request = try signedRequest(method: "POST", path: "/v1/incidents/\(id)/ack", body: Data())
+        let request = try signedRequest(method: "POST", path: "/v1/incidents/\(id.asPathSegment)/ack", body: Data())
         try await send(request)
     }
 
     func setBudget(run: String, usd: Double) async throws {
         let body = try JSONSerialization.data(withJSONObject: ["budget_usd": usd])
-        let request = try signedRequest(method: "POST", path: "/v1/runs/\(run)/budget", body: body)
+        let request = try signedRequest(method: "POST", path: "/v1/runs/\(run.asPathSegment)/budget", body: body)
         try await send(request)
     }
 
@@ -152,7 +152,7 @@ final class Account {
         let hex = token.map { String(format: "%02x", $0) }.joined()
         guard
             let body = try? JSONSerialization.data(withJSONObject: ["token": hex]),
-            let request = try? signedRequest(method: "POST", path: "/v1/devices/\(session.deviceId)/apns", body: body)
+            let request = try? signedRequest(method: "POST", path: "/v1/devices/\(session.deviceId.asPathSegment)/apns", body: body)
         else { return }
         try? await send(request)
     }
@@ -166,7 +166,7 @@ final class Account {
         let canonical = Canonical.string(method: method, path: path, body: body, ts: ts, nonce: nonce)
         let signature = try key.sign(Data(canonical.utf8)).base64EncodedString()
 
-        var request = URLRequest(url: base.appending(path: String(path.drop(while: { $0 == "/" }))))
+        var request = URLRequest(url: try Self.mutationURL(base: base, encodedPath: path))
         request.httpMethod = method
         if !body.isEmpty {
             request.httpBody = body
@@ -180,9 +180,46 @@ final class Account {
         return request
     }
 
+    /// Assemble the mutation URL from an ALREADY-percent-encoded absolute
+    /// `path`. The URL's path is SET to exactly `path` (not appended), so it
+    /// equals the string that was signed, which equals what the Cloud reads via
+    /// `uri.path()`. Setting rather than appending is deliberate: a base URL
+    /// with a trailing slash or a stray path (e.g. a hand-typed pairing URL
+    /// like `http://host:8787/`) would otherwise desync the wire path from the
+    /// signature (`//v1/...` -> a 404, not even a signature error). And never
+    /// `URL.appending(path:)`, which would percent-encode `path` a second time.
+    /// Internal, so `PathEncodingTests` exercises the real assembly.
+    static func mutationURL(base: URL, encodedPath path: String) throws -> URL {
+        guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+            throw APIClient.ClientError.badURL
+        }
+        components.percentEncodedPath = path
+        guard let url = components.url else { throw APIClient.ClientError.badURL }
+        return url
+    }
+
     private func send(_ request: URLRequest) async throws {
         let (_, response) = try await transport.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIClient.ClientError.notHTTP }
         guard (200..<300).contains(http.statusCode) else { throw APIClient.ClientError.http(http.statusCode) }
+    }
+}
+
+extension String {
+    /// Percent-encode this string as a SINGLE URL path segment: `/`, spaces,
+    /// `?`, `#`, `%` and other reserved characters become data, not path
+    /// structure. Used for the dynamic ids in signed mutation paths (run id,
+    /// incident id, device id) so an id can be anything the server assigned
+    /// without breaking the URL or, worse, the ES256 signature. The Cloud
+    /// verifies the signature over `uri.path()` -- the raw, encoded request
+    /// path -- so the client must SIGN and SEND exactly these bytes; encoding
+    /// the id once here and reusing that same path for both keeps them in sync.
+    var asPathSegment: String {
+        // `urlPathAllowed` permits `/` (a segment separator), which a single
+        // segment must encode. `%` is never in the set (removing it is
+        // belt-and-braces, keep it so `a%b` -> `a%25b` can never regress).
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/%")
+        return addingPercentEncoding(withAllowedCharacters: allowed) ?? self
     }
 }
