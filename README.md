@@ -19,7 +19,7 @@ The out-of-band control for **TokenFuse**, the runtime kill-switch for AI agents
 
 This is the native **iPhone + Apple Watch** app for **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)**, the runtime kill-switch for AI agents: a proxy that caps what your agents can spend and cuts them off the instant they blow past budget. TokenFuse's proxy does the enforcing in-line; this app is the **out-of-band control** you carry: an independent, hardware-rooted way to pull the **Breaker** that keeps working even if the agent's own host is the thing running away or compromised. See every agent's burn rate live, get alerted the moment one runs hot, and stop it with a kill that's signed on-device by your device's **Secure Enclave**.
 
-> TokenFuse's CLI and local proxy are **free forever** (Apache-2.0, self-host). The hosted **Cloud** plane is a flat-monthly plan for fleet-wide dashboards and central budgets (pricing not finalized). This app pairs with either — your own self-hosted plane, or Cloud.
+> TokenFuse is **free end to end** (Apache-2.0, self-host): the CLI, the local proxy, and the **Cloud** control plane + dashboard. There is no paid TokenFuse tier. This app pairs with the plane you run yourself; the separate commercial product is the enterprise control room over the whole stack ([Genaryx](https://github.com/TAIPANBOX/genaryx), private), whose relay also powers this app's remote **Pocket** mode below.
 
 <div align="center">
 
@@ -147,6 +147,41 @@ The FinOps and governance surface, live against a control plane:
 
 ---
 
+## 📟 TokenFuse Pocket: the relay-paired remote pager
+
+Everything above pairs the app **directly** to a control plane it can reach on
+your network. **Pocket** (D12) is the second mode, built for the case where you
+are away from that network and only want to hear about exceptions: the phone
+(and the watch, independently) pairs **once, by QR, one device**, to the
+Genaryx relay running next to the stack, and the relay pushes only what needs a
+human: an over-cap run, opened straight into the signed-kill flow.
+
+Built and verified sim-first against a live stack:
+
+- **Exception-first queue.** The relay serves a bounded read slice (money +
+  agents); the phone renders the exception, not a firehose.
+- **The money surface (D14).** One pinned shell: spend, savings, and the agent
+  list with each row saying which axis it is on; tap an agent to open it.
+- **Findings carry provenance.** When a detection came from somewhere else in
+  the stack (an Idryx identity finding, not a TokenFuse budget trip), the card
+  says so. Verified live end to end: a real Idryx detection reached the phone
+  through Cloud and the relay.
+- **Felyx annotation.** The Genaryx copilot's triage note (read + propose,
+  never act) renders on the exception card, so the page arrives with context.
+- **Wrist exceptions.** The watch has its own relay client: exception-only, its
+  own signed kill, and **honest revocation**; a deauthorized device says it was
+  deauthorized instead of pretending to be paired.
+- **Hardened paths.** Signed mutation paths percent-encode dynamic ids, and the
+  campaign-era ATS exception is gone from both targets.
+
+Pocket ships as part of the commercial control room (Genaryx), not the free
+app: the relay is Genaryx's, and the free stack stays fully usable locally
+without a phone. Real-device APNs push and store distribution wait on the Apple
+Developer account; mobile overall is roadmap while the product's present tense
+is the web console on the customer's own box.
+
+---
+
 ## 🎨 One identity: *the fuse*
 
 Everything you see is built around a single idea: **a fuse that carries current until it must break the circuit.** The same visual language runs across the iPhone, the Apple Watch, and the [web dashboard](https://github.com/TAIPANBOX/tokenfuse/tree/main/cloud/dashboard), so the tool feels like one product, not three.
@@ -192,6 +227,7 @@ A single SwiftUI codebase, shared across phone and watch.
 - **CryptoKit / Secure Enclave** handle device pairing and **ES256-signed** kills and budget changes. The exact wire protocol (canonical signing string, key formats) mirrors the gateway's, so a kill signed here is verified there.
 - **Generated API layer.** The typed client mirrors [`ios/openapi.json`](ios/openapi.json), the same OpenAPI contract the control plane publishes. It tracks the current contract, including the FinOps and governance reads (savings, per-agent spend, incidents, compliance evidence, audit, replay) and the typed `402 plan_required` upgrade path for paid features.
 - **XcodeGen.** The project is defined in YAML, not a binary `.pbxproj`, so changes are readable in a diff.
+- **Relay mode (Pocket).** A second transport beside the direct plane client: pairing and reads go to the Genaryx relay's bounded surface, and every mutation stays an Enclave-signed request the box verifies, so the relay carries pages and reads, never authority. Signed mutation paths percent-encode dynamic ids.
 
 The iPhone and Apple Watch apps share the design system, the API layer, and the signing code; each adds only its own screens.
 
@@ -201,6 +237,7 @@ The iPhone and Apple Watch apps share the design system, the API layer, and the 
 
 - **iPhone app: complete.** Organized into four tabs (Fleet · FinOps · Incidents · Governance). Pairing, live fleet, run detail with burn charts, Face-ID and Enclave-signed kill and budgets, notifications, Dynamic Island / Live Activity, app icon. The FinOps tab adds the savings headline and per-agent spend; Incidents adds the anomaly feed with a signed acknowledge; Governance adds compliance evidence, the audit trail with chain-verify, and per-run replay. Every screen is verified live against a real control plane on the simulator.
 - **Apple Watch app: complete.** Live fleet, wrist-signed kill, and the face complication.
+- **TokenFuse Pocket (relay mode): built, sim-first.** QR single-device pairing to the Genaryx relay, exception-first push opening into the signed-kill flow, the money surface behind one pinned shell, cross-service finding provenance (verified live end to end: Idryx → Cloud → relay → phone), the Felyx annotation on the exception card, and the watch's own relay client with honest revocation and deauthorization. Ships with the commercial control room, not the free app.
 - **Deferred** (needs a paid Apple Developer account or real paired devices): real remote **push** delivery, an **App Store** release, and hand-off of the session from the paired iPhone to the Watch over WatchConnectivity (today the Watch pairs on its own).
 
 It has **not** had a production hardening pass or a security review, so treat it as an early, capable app you can build and evaluate today.
@@ -210,6 +247,7 @@ It has **not** had a production hardening pass or a security review, so treat it
 ## 🔗 Links
 
 - **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)** is the gateway + Cloud control plane this app talks to.
+- **[Genaryx](https://github.com/TAIPANBOX/genaryx)** (private) is the enterprise control room; its relay is what **Pocket** pairs through.
 - **[Web dashboard](https://github.com/TAIPANBOX/tokenfuse/tree/main/cloud/dashboard):** the same fleet, the same *fuse*, in a browser.
 - **[Mobile plan & wire protocol](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/14-mobile-companion.md)** · **[Design system](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/16-design-system.md)**
 - **[`docs/`](docs/):** interactive iPhone / Watch / dashboard mockups, served live at [taipanbox.github.io/tokenfuse-mobile](https://taipanbox.github.io/tokenfuse-mobile/).
