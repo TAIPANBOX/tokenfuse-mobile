@@ -253,7 +253,7 @@ way they are, and it moves when there is time for it.
 - **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)** is the gateway + Cloud control plane this app talks to.
 - **[Genaryx](https://github.com/TAIPANBOX/genaryx)** is the browser control room over the whole stack; its relay is what **Pocket** pairs through.
 - **[Web dashboard](https://github.com/TAIPANBOX/tokenfuse/tree/main/cloud/dashboard):** the same fleet, the same *fuse*, in a browser.
-- **[Mobile plan & wire protocol](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/14-mobile-companion.md)** · **[Design system](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/16-design-system.md)**
+- **[Design system](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/16-design-system.md)**
 - **[`docs/`](docs/):** interactive iPhone / Watch / dashboard mockups, served live at [taipanbox.github.io/tokenfuse-mobile](https://taipanbox.github.io/tokenfuse-mobile/).
 
 ---
