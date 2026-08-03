@@ -19,7 +19,7 @@ The out-of-band control for **TokenFuse**, the runtime kill-switch for AI agents
 
 This is the native **iPhone + Apple Watch** app for **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)**, the runtime kill-switch for AI agents: a proxy that caps what your agents can spend and cuts them off the instant they blow past budget. TokenFuse's proxy does the enforcing in-line; this app is the **out-of-band control** you carry: an independent, hardware-rooted way to pull the **Breaker** that keeps working even if the agent's own host is the thing running away or compromised. See every agent's burn rate live, get alerted the moment one runs hot, and stop it with a kill that's signed on-device by your device's **Secure Enclave**.
 
-> TokenFuse is **free end to end** (Apache-2.0, self-host): the CLI, the local proxy, and the **Cloud** control plane + dashboard. There is no paid TokenFuse tier. This app pairs with the plane you run yourself; the separate commercial product is the enterprise control room over the whole stack ([Genaryx](https://github.com/TAIPANBOX/genaryx), private), whose relay also powers this app's remote **Pocket** mode below.
+> Everything here is free and open (Apache-2.0, self-host): the CLI, the local proxy, the **Cloud** control plane, and the [Genaryx](https://github.com/TAIPANBOX/genaryx) console whose relay powers this app's remote **Pocket** mode below. There is no paid tier anywhere in the stack, and nothing is sold. This app pairs with the plane you run yourself.
 
 <div align="center">
 
@@ -60,7 +60,7 @@ You don't need to be an engineer to use it: pair once, and the fleet is right th
 
 ## 🔒 Why the Breaker needs an app (and a signature)
 
-Stopping an agent mid-task is a powerful, destructive action, so it has to be **authenticated**. If pulling the Breaker were just an API call with a token, then anyone who stole that token could shut your agents down — or, just as bad, a compromised or runaway agent host could suppress the stop from reaching the proxy at all.
+Stopping an agent mid-task is a powerful, destructive action, so it has to be **authenticated**. If pulling the Breaker were just an API call with a token, then anyone who stole that token could shut your agents down, or, just as bad, a compromised or runaway agent host could suppress the stop from reaching the proxy at all.
 
 TokenFuse solves this with **hardware-backed signing** on a *separate* device. When you pair this app, it generates a private key **inside the device's Secure Enclave**, a chip that never lets the key out, not even to the app itself. Every Breaker pull (and every budget change) is signed by that key on-device. The control plane verifies the signature before it acts. The result:
 
@@ -68,7 +68,7 @@ TokenFuse solves this with **hardware-backed signing** on a *separate* device. W
 - A stolen **phone can't fire the Breaker** either, because the slide-to-arm control is behind **Face ID**.
 - The Breaker is **enforced across every gateway** in your fleet, instantly, from a device that's independent of whatever the agent is running on.
 
-This is the differentiator a first-party, in-process control can't match: a signed kill that comes from *outside* the agent's own host, so it still works when that host is exactly what's misbehaving. This is the heart of the design: *the Breaker is in your hand, and only your hand can pull it* — signed on-device by the Secure Enclave, not merely "an API call with extra steps."
+This is the differentiator a first-party, in-process control can't match: a signed kill that comes from *outside* the agent's own host, so it still works when that host is exactly what's misbehaving. This is the heart of the design: *the Breaker is in your hand, and only your hand can pull it*, signed on-device by the Secure Enclave, not merely "an API call with extra steps."
 
 ---
 
@@ -174,11 +174,10 @@ Built and verified sim-first against a live stack:
 - **Hardened paths.** Signed mutation paths percent-encode dynamic ids, and the
   campaign-era ATS exception is gone from both targets.
 
-Pocket ships as part of the commercial control room (Genaryx), not the free
-app: the relay is Genaryx's, and the free stack stays fully usable locally
-without a phone. Real-device APNs push and store distribution wait on the Apple
-Developer account; mobile overall is roadmap while the product's present tense
-is the web console on the customer's own box.
+Pocket needs the Genaryx relay, which is what makes it remote; the rest of the
+stack stays fully usable locally without a phone. Real-device APNs push and
+store distribution wait on the Apple Developer account, so mobile is a side
+project: the present tense of this stack is the web console on your own box.
 
 ---
 
@@ -225,7 +224,7 @@ A single SwiftUI codebase, shared across phone and watch.
 - **SwiftUI · Swift 6** with strict concurrency; `@Observable` state, **SwiftData** for an offline cache, **Swift Charts** for the burn history.
 - **WidgetKit** powers the Dynamic Island / Lock-Screen **Live Activity** on iPhone, and the **watch-face complication** (fed from the app over an App Group).
 - **CryptoKit / Secure Enclave** handle device pairing and **ES256-signed** kills and budget changes. The exact wire protocol (canonical signing string, key formats) mirrors the gateway's, so a kill signed here is verified there.
-- **Generated API layer.** The typed client mirrors [`ios/openapi.json`](ios/openapi.json), the same OpenAPI contract the control plane publishes. It tracks the current contract, including the FinOps and governance reads (savings, per-agent spend, incidents, compliance evidence, audit, replay) and the typed `402 plan_required` upgrade path for paid features.
+- **Generated API layer.** The typed client mirrors [`ios/openapi.json`](ios/openapi.json), the same OpenAPI contract the control plane publishes. It tracks the current contract, including the FinOps and governance reads (savings, per-agent spend, incidents, compliance evidence, audit, replay) The `402 plan_required` variant is still PARSED, so an app pointed at an older Cloud reports the refusal honestly rather than going blank, but nothing current sends it.
 - **XcodeGen.** The project is defined in YAML, not a binary `.pbxproj`, so changes are readable in a diff.
 - **Relay mode (Pocket).** A second transport beside the direct plane client: pairing and reads go to the Genaryx relay's bounded surface, and every mutation stays an Enclave-signed request the box verifies, so the relay carries pages and reads, never authority. Signed mutation paths percent-encode dynamic ids.
 
@@ -237,17 +236,22 @@ The iPhone and Apple Watch apps share the design system, the API layer, and the 
 
 - **iPhone app: complete.** Organized into four tabs (Fleet · FinOps · Incidents · Governance). Pairing, live fleet, run detail with burn charts, Face-ID and Enclave-signed kill and budgets, notifications, Dynamic Island / Live Activity, app icon. The FinOps tab adds the savings headline and per-agent spend; Incidents adds the anomaly feed with a signed acknowledge; Governance adds compliance evidence, the audit trail with chain-verify, and per-run replay. Every screen is verified live against a real control plane on the simulator.
 - **Apple Watch app: complete.** Live fleet, wrist-signed kill, and the face complication.
-- **TokenFuse Pocket (relay mode): built, sim-first.** QR single-device pairing to the Genaryx relay, exception-first push opening into the signed-kill flow, the money surface behind one pinned shell, cross-service finding provenance (verified live end to end: Idryx → Cloud → relay → phone), the Felyx annotation on the exception card, and the watch's own relay client with honest revocation and deauthorization. Ships with the commercial control room, not the free app.
+- **TokenFuse Pocket (relay mode): built, sim-first.** QR single-device pairing to the Genaryx relay, exception-first push opening into the signed-kill flow, the money surface behind one pinned shell, cross-service finding provenance (verified live end to end: Idryx → Cloud → relay → phone), the Felyx annotation on the exception card, and the watch's own relay client with honest revocation and deauthorization.
 - **Deferred** (needs a paid Apple Developer account or real paired devices): real remote **push** delivery, an **App Store** release, and hand-off of the session from the paired iPhone to the Watch over WatchConnectivity (today the Watch pairs on its own).
 
 It has **not** had a production hardening pass or a security review, so treat it as an early, capable app you can build and evaluate today.
+
+**This is a side project, not part of the stack.** The stack is the web console
+and the services beside it, which run on the operator's own box and carry their
+own measurements. Nothing here is wired into them, nothing here is verified the
+way they are, and it moves when there is time for it.
 
 ---
 
 ## 🔗 Links
 
 - **[TokenFuse](https://github.com/TAIPANBOX/tokenfuse)** is the gateway + Cloud control plane this app talks to.
-- **[Genaryx](https://github.com/TAIPANBOX/genaryx)** (private) is the enterprise control room; its relay is what **Pocket** pairs through.
+- **[Genaryx](https://github.com/TAIPANBOX/genaryx)** is the browser control room over the whole stack; its relay is what **Pocket** pairs through.
 - **[Web dashboard](https://github.com/TAIPANBOX/tokenfuse/tree/main/cloud/dashboard):** the same fleet, the same *fuse*, in a browser.
 - **[Mobile plan & wire protocol](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/14-mobile-companion.md)** · **[Design system](https://github.com/TAIPANBOX/tokenfuse/blob/main/docs/16-design-system.md)**
 - **[`docs/`](docs/):** interactive iPhone / Watch / dashboard mockups, served live at [taipanbox.github.io/tokenfuse-mobile](https://taipanbox.github.io/tokenfuse-mobile/).
