@@ -188,9 +188,9 @@
   <header class="wmast">
     <div class="wkick">Design direction · watchOS</div>
     <h1>The kill switch on your <span class="warm">wrist</span>.</h1>
-    <p>The same fuse — cool, warming, ember — shrunk to a glance. On the wrist you don't browse; you see the
+    <p>The same fuse (cool, warming, ember) shrunk to a glance. On the wrist you don't browse; you see the
       burn rate on the face, and when one runs hot you kill it in two taps. Flip through the screens below,
-      and switch between <b style="color:var(--fg)">Series</b> and <b style="color:var(--fg)">Ultra</b> — where the
+      and switch between <b style="color:var(--fg)">Series</b> and <b style="color:var(--fg)">Ultra</b>, where the
       orange Action Button arms the kill.</p>
   </header>
 
@@ -216,7 +216,7 @@
       </div>
       <div class="explain" id="explain">
         <div class="t" id="exT">Watch face · complication</div>
-        <div class="d" id="exD">The burn rate rides on your watch face as a complication — no app to open. A red glyph and $/min means an agent is over cap right now.</div>
+        <div class="d" id="exD">The burn rate rides on your watch face as a complication, no app to open. A red glyph and $/min means an agent is over cap right now.</div>
         <div class="meta" id="exM"><span class="tag">glanceable</span><span class="tag hot">1 over cap</span></div>
       </div>
     </div>
@@ -349,10 +349,10 @@
   var coArm=document.getElementById("coArm");
 
   var copy={
-    face:["Watch face · complication","The burn rate rides on your watch face as a complication — no app to open. A red glyph and $/min means an agent is over cap right now.",'<span class="tag">glanceable</span><span class="tag hot">1 over cap</span>'],
+    face:["Watch face · complication","The burn rate rides on your watch face as a complication, no app to open. A red glyph and $/min means an agent is over cap right now.",'<span class="tag">glanceable</span><span class="tag hot">1 over cap</span>'],
     fleet:["Fleet · one glance","Total burn across every gateway, the aggregate fuse, and how many runs are active. Digital Crown scrolls; a tap opens a run.",'<span class="tag">crown scroll</span><span class="tag">$0.42/min</span>'],
-    runs:["Runs · sorted by heat","The short list — hottest first. Each run is a fuse and a rate. The one over cap is already at the top, in ember.",'<span class="tag">3 active</span><span class="tag hot">7f3a2b over</span>'],
-    kill:["Kill · from the wrist","Turn the Digital Crown to arm (Ultra: the Action Button), then tap. The request is signed by the Watch’s Secure Enclave — a lost phone can’t stop your kill.",'<span class="tag">crown to arm</span><span class="tag hot">signed on-device</span>'],
+    runs:["Runs · sorted by heat","The short list, hottest first. Each run is a fuse and a rate. The one over cap is already at the top, in ember.",'<span class="tag">3 active</span><span class="tag hot">7f3a2b over</span>'],
+    kill:["Kill · from the wrist","Turn the Digital Crown to arm (Ultra: the Action Button), then tap. The request is signed by the Watch’s Secure Enclave, so a lost phone can’t stop your kill.",'<span class="tag">crown to arm</span><span class="tag hot">signed on-device</span>'],
     killed:["Killed · confirmed","A clean confirmation: the run is stopped across every gateway, signed right here. The fuse goes dark.",'<span class="tag">3 gateways</span><span class="tag">402 killed</span>']
   };
   var exT=document.getElementById("exT"),exD=document.getElementById("exD"),exM=document.getElementById("exM");

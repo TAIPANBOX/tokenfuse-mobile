@@ -73,7 +73,7 @@ enum PairingService {
             throw PairError(errorDescription: "No response from the plane.")
         }
         guard http.statusCode == 200 else {
-            throw PairError(errorDescription: "Pairing failed — the code may be wrong or expired.")
+            throw PairError(errorDescription: "Pairing failed. The code may be wrong or expired.")
         }
 
         struct PairResponse: Decodable {
