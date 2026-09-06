@@ -9,6 +9,9 @@ on:
   # is why the 2026-08-01 checkout fix sat unverified until 2026-08-08.
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: build + test (iOS · watchOS)
