@@ -171,8 +171,10 @@ Built and verified sim-first against a live stack:
 - **Wrist exceptions.** The watch has its own relay client: exception-only, its
   own signed kill, and **honest revocation**; a deauthorized device says it was
   deauthorized instead of pretending to be paired.
-- **Hardened paths.** Signed mutation paths percent-encode dynamic ids, and the
-  campaign-era ATS exception is gone from both targets.
+- **Hardened paths.** Signed mutation paths percent-encode dynamic ids, the
+  campaign-era ATS exception is gone from both targets, and neither target
+  ships `NSAllowsArbitraryLoads`: the relay path is pinned HTTPS, the
+  dev-harness path is plain HTTP scoped to the local network only.
 
 Pocket needs the Genaryx relay, which is what makes it remote; the rest of the
 stack stays fully usable locally without a phone. Real-device APNs push and
