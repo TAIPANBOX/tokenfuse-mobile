@@ -47,16 +47,10 @@ targets:
           # The relay is reached at whatever address the customer's own box
           # has, over a SELF-SIGNED certificate, and the app trusts it by SPKI
           # pin delivered in the QR the operator scanned off their desktop.
-          # ATS cannot express that: it demands a CA-anchored chain and a
-          # matching hostname, and it refuses the connection BEFORE the
-          # pinning delegate's decision can take effect (observed: the pin
-          # matched, then CFNetwork failed the task 2ms later with -9802).
-          # An NSExceptionDomains entry is impossible because the host is not
-          # known until the customer installs. What replaces ATS here is
-          # stricter than ATS: PinnedTLS.swift accepts exactly ONE certificate
-          # in the world, the one whose public key matches the pin, and hard
-          # aborts on anything else.
-          NSAllowsArbitraryLoads: true
+          # `NSAllowsArbitraryLoads` does not ship (security review,
+          # 2026-09-06): per the finding below it never actually opened this
+          # connection anyway, and PinnedTLS.swift's own SPKI check is what
+          # protects the relay path regardless of that key.
           # No NSExceptionDomains entry ships, deliberately. One lived here
           # during the 2026-07-20 campaign, naming that box's address; it was
           # removed on 2026-07-21 when the box was destroyed. An exception
@@ -174,8 +168,9 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           # Same reason as the phone: the watch is a relay client too, and
-          # reaches the same self-signed, pin-trusted relay.
-          NSAllowsArbitraryLoads: true
+          # reaches the same self-signed, pin-trusted relay. No
+          # `NSAllowsArbitraryLoads` here either, for the same reason as the
+          # phone above (security review, 2026-09-06).
           # And no NSExceptionDomains entry here either, for the same reason
           # and with the same history as the phone above - see that comment for
           # the -9802 finding and what to do if a self-signed relay has to be
