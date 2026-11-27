@@ -1836,7 +1836,8 @@
             ],
             "items": {
               "type": "string"
-            }
+            },
+            "maxItems": 32
           },
           "prev_hash": {
             "type": [
